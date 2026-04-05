@@ -63,13 +63,10 @@ def recognize_student(face_img):
             best_match = name
 
     print("Distance:", min_dist)
-
-
-    # 🔥 Threshold (tune if needed) - tightened to reduce false positives
-    if min_dist < 1.3:
+    THRESHOLD = 1.3  # demo friendly
+    
+    if min_dist < THRESHOLD:
         return best_match
-
-
     return "Unknown"
 
 load_dataset()

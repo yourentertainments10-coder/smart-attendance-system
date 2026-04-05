@@ -79,10 +79,9 @@
             let tbody = document.getElementById("attendance-body");
             tbody.innerHTML = "";
             if (data.recent_attendance && data.recent_attendance.length > 0) {
-                data.recent_attendance.forEach(row => {
+            data.recent_attendance.forEach((row, index) => {
                     tbody.innerHTML += `
-                        <tr>
-                            <td>${row.id}</td>
+                        <tr style="${index === 0 ? 'background:#e8f5e9;font-weight:bold;' : ''}">\n                            <td>${row.id}</td>
                             <td>${row.name}</td>
                             <td>${row.date}</td>
                             <td>${row.time}</td>
@@ -111,7 +110,7 @@
                     loadTable(data);
                     
                     // Update time
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                    document.getElementById('last-update').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
                 });
         }
 

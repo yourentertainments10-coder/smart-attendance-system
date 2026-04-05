@@ -28,7 +28,11 @@ def register_student_route():
             )
             db.commit()
 
-            flash(f'Successfully captured {saved} images for {name}!')
+            # Reload dataset for immediate recognition
+            from services.face_recognition_service import load_dataset
+            load_dataset()
+
+            flash(f'Successfully captured {saved} images for {name}! Dataset reloaded.')
 
             return redirect(url_for('student.register_student_route'))
 
