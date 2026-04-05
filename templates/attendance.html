@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance - Live Recognition</title>
+    <style>
+        body { font-family: Arial; text-align: center; padding: 20px; }
+        img { border: 2px solid #4CAF50; }
+        h1 { color: #333; }
+    </style>
+</head>
+<body>
+    <h1>Live Face Recognition Attendance</h1>
+    <p>Look at camera - recognized student overlay shown</p>
+    <img src="{{ url_for('attendance.attendance_feed') }}" width="640" height="480">
+    <br><br>
+    <a href="/">Home</a> | <a href="/register_student">Register Student</a>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register New Student</title>
+    <style>
+        body { font-family: Arial; max-width: 500px; margin: 100px auto; padding: 20px; }
+        input, button { width: 100%; padding: 10px; margin: 10px 0; }
+        button { background: #4CAF50; color: white; border: none; cursor: pointer; }
+        .flash { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Register New Student</h1>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="flash {{ 'success' if 'Success' in message else 'error' }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <form method="POST">
+        <input type="text" name="student_id" placeholder="Student ID (e.g. 101)" required>
+        <input type="text" name="name" placeholder="Full Name (e.g. Rahul Sharma)" required>
+        <button type="submit">Start Capture (20 Face Images)</button>
+    </form>
+    <p><small>Camera opens, show face clearly, press 'q' to stop early. Only face-detected frames saved.</small></p>
+</body>
+</html>

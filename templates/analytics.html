@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Attendance Analytics</h1>
+        <nav>
+            <a href="/">Home</a> | <a href="/analytics">Analytics</a>
+        </nav>
+        
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Students</h3>
+                <span id="total-students" class="stat-number">0</span>
+            </div>
+            <div class="stat-card green">
+                <h3>Present Today</h3>
+                <span id="present" class="stat-number">0</span>
+            </div>
+            <div class="stat-card red">
+                <h3>Absent Today</h3>
+                <span id="absent" class="stat-number">0</span>
+            </div>
+            <div class="stat-card">
+                <h3>Attendance %</h3>
+                <span id="percentage" class="stat-number">0%</span>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div>
+                <h3>Daily Attendance (Last 7 Days)</h3>
+                <canvas id="dailyChart"></canvas>
+            </div>
+            <div>
+                <h3>Monthly Attendance (Last 6 Months)</h3>
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+        
+        <div>
+            <h3>Top Students by Attendance</h3>
+            <canvas id="studentChart"></canvas>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script>
+        fetch('/analytics/analytics_data')
+            .then(r => r.json())
+            .then(data => {
+                // Stats
+                document.getElementById('total-students').textContent = data.stats.total;
+                document.getElementById('present').textContent = data.stats.present;
+                document.getElementById('absent').textContent = data.stats.absent;
+                document.getElementById('percentage').textContent = data.stats.percentage + '%';
+                
+                // Charts
+                initCharts(data.daily, data.monthly, data.students);
+            });
+    </script>
+</body>
+</html>

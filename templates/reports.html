@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reports - Smart Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Generate Reports</h1>
+        <nav>
+            <a href="/">Home</a> | <a href="/analytics">Analytics</a> | <a href="/reports">Reports</a>
+        </nav>
+        
+        <h2>Daily Attendance Report</h2>
+        <form method="POST" action="/reports/daily">
+            <input type="date" name="date" value="{{ current_date }}">
+            <select name="format">
+                <option value="pdf">PDF</option>
+                <option value="excel">Excel</option>
+            </select>
+            <button type="submit">Generate Daily Report</button>
+        </form>
+        
+        <h2>Monthly Attendance Report</h2>
+        <form method="POST" action="/reports/monthly">
+{{ current_month or '' }}
+            <select name="format">
+                <option value="pdf">PDF</option>
+                <option value="excel">Excel</option>
+            </select>
+            <button type="submit">Generate Monthly Report</button>
+        </form>
+        
+        <h2>Defaulters List</h2>
+        <form method="POST" action="/reports/defaulters">
+            <label>Days Threshold: <input type="number" name="days" value="3" min="1"></label>
+            <select name="format">
+                <option value="pdf">PDF</option>
+                <option value="excel">Excel</option>
+            </select>
+            <button type="submit">Generate Defaulters Report</button>
+        </form>
+        
+        <h3>Recent Reports</h3>
+        <ul id="recent-reports">
+            {% for report in recent_reports %}
+            <li><a href="{{ report.url }}">{{ report.name }}</a> ({{ report.date }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
