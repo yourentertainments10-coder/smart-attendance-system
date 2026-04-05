@@ -52,6 +52,24 @@ def analytics_data():
     ''').fetchall()
     student_data = [{'id': row[0], 'name': row[1], 'perc': round(row[2], 1)} for row in students_att]
     
+    # Recent attendance records
+    recent = db.execute('''
+        SELECT s.student_id, s.name, a.date, a.time
+        FROM attendance a
+        JOIN students s ON a.student_id = s.student_id
+        ORDER BY a.date DESC, a.time DESC
+        LIMIT 10
+    ''').fetchall()
+    recent_data = [
+        {
+            'id': row[0],
+            'name': row[1],
+            'date': row[2],
+            'time': row[3]
+        }
+        for row in recent
+    ]
+    
     db.close()
     return jsonify({
         'stats': {
@@ -62,6 +80,7 @@ def analytics_data():
         },
         'daily': daily_data,
         'monthly': monthly_data,
-        'students': student_data
+        'students': student_data,
+        'recent_attendance': recent_data
     })
 

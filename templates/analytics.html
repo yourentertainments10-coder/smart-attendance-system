@@ -48,22 +48,78 @@
             <h3>Top Students by Attendance</h3>
             <canvas id="studentChart"></canvas>
         </div>
+        
+        <!-- Attendance Table -->
+        <div class="table-section">
+            <h3>Recent Attendance Records</h3>
+            <div class="table-container">
+                <table id="attendanceTable">
+                    <thead>
+                        <tr>
+                            <th>Student ID</th>
+                            <th>Name</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendance-body">
+                        <!-- Loaded by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <button onclick="refreshDashboard()">Refresh Now</button>
+            <p>Last updated: <span id="last-update">--</span></p>
+        </div>
     </div>
     
     <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
     <script>
-        fetch('/analytics/analytics_data')
-            .then(r => r.json())
-            .then(data => {
-                // Stats
-                document.getElementById('total-students').textContent = data.stats.total;
-                document.getElementById('present').textContent = data.stats.present;
-                document.getElementById('absent').textContent = data.stats.absent;
-                document.getElementById('percentage').textContent = data.stats.percentage + '%';
-                
-                // Charts
-                initCharts(data.daily, data.monthly, data.students);
-            });
+        function loadTable(data) {
+            let tbody = document.getElementById("attendance-body");
+            tbody.innerHTML = "";
+            if (data.recent_attendance && data.recent_attendance.length > 0) {
+                data.recent_attendance.forEach(row => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${row.id}</td>
+                            <td>${row.name}</td>
+                            <td>${row.date}</td>
+                            <td>${row.time}</td>
+                            <td><span class="status-present">Present</span></td>
+                        </tr>`;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5">No recent records</td></tr>';
+            }
+        }
+
+        function refreshDashboard() {
+            fetch('/analytics/analytics_data')
+                .then(r => r.json())
+                .then(data => {
+                    // Stats
+                    document.getElementById('total-students').textContent = data.stats.total;
+                    document.getElementById('present').textContent = data.stats.present;
+                    document.getElementById('absent').textContent = data.stats.absent;
+                    document.getElementById('percentage').textContent = data.stats.percentage + '%';
+                    
+                    // Charts
+                    initCharts(data.daily, data.monthly, data.students);
+                    
+                    // Table
+                    loadTable(data);
+                    
+                    // Update time
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                });
+        }
+
+        // Initial load
+        refreshDashboard();
+        
+        // Auto refresh every 30 seconds
+        setInterval(refreshDashboard, 30000);
     </script>
 </body>
 </html>
