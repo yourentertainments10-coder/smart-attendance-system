@@ -1,2 +1,1 @@
-# Empty test file
 pass

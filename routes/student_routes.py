@@ -1,11 +1,11 @@
 from flask import Blueprint, request, render_template, redirect, url_for, flash
-from utils.camera_utils import register_student
+from utils.camera_utils_fixed import register_student
 
 student_bp = Blueprint('student', __name__, template_folder='../templates')
 
 
 from flask import Blueprint, request, render_template, redirect, url_for, flash
-from utils.camera_utils import register_student
+from utils.camera_utils_fixed import register_student
 from database.db_connection import get_db
 
 student_bp = Blueprint('student', __name__, template_folder='../templates')

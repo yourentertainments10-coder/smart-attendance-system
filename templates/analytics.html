@@ -36,17 +36,21 @@
         <div class="charts-grid">
             <div>
                 <h3>Daily Attendance (Last 7 Days)</h3>
-                <canvas id="dailyChart"></canvas>
+                <canvas id="dailyChart" height="200"></canvas>
             </div>
             <div>
                 <h3>Monthly Attendance (Last 6 Months)</h3>
-                <canvas id="monthlyChart"></canvas>
+                <canvas id="monthlyChart" height="200"></canvas>
             </div>
         </div>
         
         <div>
             <h3>Top Students by Attendance</h3>
-            <canvas id="studentChart"></canvas>
+            <canvas id="studentChart" height="250"></canvas>
+        </div>
+        <div>
+            <h3>Student Engagement Levels</h3>
+            <canvas id="engagementChart" height="250"></canvas>
         </div>
         
         <!-- Attendance Table -->
@@ -104,7 +108,7 @@
                     document.getElementById('percentage').textContent = data.stats.percentage + '%';
                     
                     // Charts
-                    initCharts(data.daily, data.monthly, data.students);
+                    initCharts(data.daily, data.monthly, data.students, data.engagement || []);
                     
                     // Table
                     loadTable(data);
@@ -114,11 +118,12 @@
                 });
         }
 
-        // Initial load
-        refreshDashboard();
-        
-        // Auto refresh every 30 seconds
-        setInterval(refreshDashboard, 30000);
+        document.addEventListener("DOMContentLoaded", function () {
+            refreshDashboard();
+            // Auto refresh every 30 seconds
+            setInterval(refreshDashboard, 30000);
+        });
     </script>
+
 </body>
 </html>

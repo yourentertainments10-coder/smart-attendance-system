@@ -8,10 +8,10 @@ mp_drawing_styles = mp.solutions.drawing_styles
 from services.engagement_detection import process_landmarks
 import os
 import time
-from models.attendance_model import mark_attendance, mark_attendance_engagement
+from models.attendance_model import mark_attendance
+from models.engagement_model import record_engagement
 from services.face_recognition_service import recognize_student
 from utils.date_utils import get_current_date
-
 def gen_frames():
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
@@ -88,71 +88,81 @@ def register_student(folder_name):
     print(f"Registration complete: {saved} images saved for {folder_name}")
     return saved
 
-def gen_frames_attendance():
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        print("❌ Camera failed")
-        return
-    print("✅ Attendance system running")
-    engagement_history = []
-    recent_predictions = []
-    last_marked = {}
-    while True:
-        try:
-            success, frame = cap.read()
-            if not success:
-                break
-            faces = detect_faces(frame)
-            recog = "Unknown"
-            if len(faces) > 0:
-                (x, y, w, h) = faces[0]
-                pad = 20
-                x = max(0, x - pad)
-                y = max(0, y - pad)
-                w = w + 2*pad
-                h = h + 2*pad
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-                face_crop = frame[y:y+h, x:x+w]
-                recog_single = recognize_student(face_crop)
+def gen_frames_attendance(app):
+    with app.app_context():
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            print("❌ Camera failed")
+            return
+        print("✅ Attendance system running")
+        engagement_history = []
+        recent_predictions = []
+        last_marked = {}
+        while True:
+            try:
+                success, frame = cap.read()
+                if not success:
+                    break
+                faces = detect_faces(frame)
+                recog = "Unknown"
+                if len(faces) > 0:
+                    (x, y, w, h) = faces[0]
+                    pad = 20
+                    x = max(0, x - pad)
+                    y = max(0, y - pad)
+                    w = w + 2*pad
+                    h = h + 2*pad
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                    face_crop = frame[y:y+h, x:x+w]
+                    recog_single = recognize_student(face_crop)
+                    if recog_single is None:
+                        recog_single = "Unknown"
 
-                recent_predictions.append(recog_single)
-                if len(recent_predictions) > 5:
-                    recent_predictions.pop(0)
+                    recent_predictions.append(recog_single)
+                    if len(recent_predictions) > 5:
+                        recent_predictions.pop(0)
 
-                # majority voting
-                recog = max(set(recent_predictions), key=recent_predictions.count)
+                    # majority voting
+                    recog = max(set(recent_predictions), key=recent_predictions.count)
 
-                print("Recognized:", recog)
-                color = (0,255,0) if "Unknown" not in recog else (0,0,255)
-                cv2.putText(frame, f"Recognized: {recog}", (x, y-10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                # Engagement tracking
-                engagement_data = process_landmarks(frame)
-                if engagement_data:
-                    _, eng_score, _ = engagement_data
-                    engagement_history.append(eng_score)
+                    print("Recognized:", recog)
+                    color = (0,255,0) if "Unknown" not in recog else (0,0,255)
+                    cv2.putText(frame, f"Recognized: {recog}", (x, y-10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                    # Engagement tracking
+                    engagement_data = process_landmarks(frame)
+                    if engagement_data:
+                        _, eng_score, _ = engagement_data
+                        engagement_history.append(eng_score)
 
-            # ✅ MARK ATTENDANCE
-            if "Unknown" not in recog:
-                now = time.time()
-                if now - last_marked.get(recog, 0) > 60:
-                    student_id = recog.split('_')[0]
-                    if engagement_history:
-                        avg_engagement = sum(engagement_history) / len(engagement_history)
-                    else:
-                        avg_engagement = 0.0
-                    if mark_attendance(student_id, recog) and mark_attendance_engagement(student_id, recog, avg_engagement):
-                        last_marked[recog] = now
-                        cv2.putText(frame, "ATTENDANCE ✓", (10, 70),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
-                    engagement_history = []  # Reset
+                # MARK ATTENDANCE
+                if "Unknown" not in recog:
+                    now = time.time()
+                    if now - last_marked.get(recog, 0) > 60:
+                        student_id = recog.split('_')[0]
+                        if engagement_history:
+                            avg_engagement = sum(engagement_history) / len(engagement_history)
+                        else:
+                            avg_engagement = 0.0
+                        attendance_ok = mark_attendance(student_id, recog)
+                        engagement_ok = record_engagement(student_id, avg_engagement)
 
-            # Encode and stream
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        except Exception as e:
-            print("ERROR:", e)
-            break
-    cap.release()
+                        if attendance_ok:
+                            last_marked[recog] = now
+                            cv2.putText(frame, "ATTENDANCE ✓", (10, 70),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
+
+                        if not engagement_ok:
+                            print("⚠️ Engagement not saved")
+
+                        engagement_history = []  # Reset
+
+                # Encode and stream
+                ret, buffer = cv2.imencode('.jpg', frame)
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            except Exception as e:
+                print("Frame processing error:", e)
+                continue
+        cap.release()

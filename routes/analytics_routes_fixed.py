@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify,current_app
 from database.db_connection import get_db
 from utils.date_utils import get_current_date
 from datetime import datetime
@@ -12,8 +12,7 @@ def analytics_page():
 
 @analytics_bp.route('/analytics/analytics_data')
 def analytics_data():
-    db = sqlite3.connect('smart_attendance.db', detect_types=sqlite3.PARSE_DECLTYPES)
-    db.row_factory = sqlite3.Row
+    db = get_db()
     
     # Total students
     total_students = db.execute('SELECT COUNT(*) FROM students').fetchone()[0]
@@ -31,7 +30,7 @@ def analytics_data():
         GROUP BY date 
         ORDER BY date DESC LIMIT 7
     ''').fetchall()
-    daily_data = [{'date': row[0], 'count': row[1]} for row in daily]
+    daily_data = [{'date': row['date'], 'count': row['count']} for row in daily]
     
     # Monthly last 6
     monthly = db.execute('''
@@ -40,7 +39,7 @@ def analytics_data():
         GROUP BY month 
         ORDER BY month DESC LIMIT 6
     ''').fetchall()
-    monthly_data = [{'month': row[0], 'count': row[1]} for row in monthly]
+    monthly_data = [{'month': row['month'], 'count': row['count']} for row in monthly]
     
     # Student attendance %
     students_att = db.execute('''
@@ -50,7 +49,7 @@ def analytics_data():
         GROUP BY s.student_id
         ORDER BY perc DESC LIMIT 10
     ''').fetchall()
-    student_data = [{'id': row[0], 'name': row[1], 'perc': round(row[2], 1)} for row in students_att]
+    student_data = [{'id': row['student_id'], 'name': row['name'], 'perc': round(row['perc'], 1)} for row in students_att]
     
     # Recent attendance records
     recent = db.execute('''
@@ -62,12 +61,27 @@ def analytics_data():
     ''').fetchall()
     recent_data = [
         {
-            'id': row[0],
-            'name': row[1],
-            'date': row[2],
-            'time': row[3]
+            'id': row['student_id'],
+            'name': row['name'],
+            'date': row['date'],
+            'time': row['time']
         }
         for row in recent
+    ]
+    
+    # Engagement stats
+    engagement_stats = db.execute('''
+        SELECT e.student_id, AVG(e.avg_engagement)*100 as avg_eng
+        FROM engagement e
+        GROUP BY e.student_id
+        ORDER BY avg_eng DESC LIMIT 10
+    ''').fetchall()
+    engagement_data = [
+        {
+            'id': row['student_id'],
+            'avg': round(row['avg_eng'], 1)
+        }
+        for row in engagement_stats
     ]
     
     db.close()
@@ -81,6 +95,7 @@ def analytics_data():
         'daily': daily_data,
         'monthly': monthly_data,
         'students': student_data,
-        'recent_attendance': recent_data
+        'recent_attendance': recent_data,
+        'engagement': engagement_data
     })
 

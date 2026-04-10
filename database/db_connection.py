@@ -1,8 +1,6 @@
 import sqlite3
 from flask import g
-import os
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATABASE = os.path.join(BASE_DIR, 'smart_attendance.db')
+from config import DATABASE
 
 def get_db():
     if 'db' not in g:
