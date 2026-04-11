@@ -1,18 +1,104 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Attendance - Live Recognition</title>
+    <title>Live Face Recognition Attendance</title>
+
+    <!-- ✅ CSS (correct place) -->
     <style>
-        body { font-family: Arial; text-align: center; padding: 20px; }
-        img { border: 2px solid #4CAF50; }
-        h1 { color: #333; }
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+
+        #status-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: green;
+            color: white;
+            font-size: 18px;
+            border-radius: 8px;
+            display: none;
+            z-index: 999;
+        }
+
+        #status-box.warning {
+            background: orange;
+        }
     </style>
 </head>
+
 <body>
-    <h1>Live Face Recognition Attendance</h1>
+
+    <!-- ✅ Status Message Box -->
+    <div id="status-box"></div>
+
+<h1>Live Face Recognition Attendance</h1>
     <p>Look at camera - recognized student overlay shown</p>
+
+    <!-- FaceID Style Animation -->
+    <div id="face-scan"></div>
+    <div id="success-msg">✅ Attendance Marked</div>
+
+    <!-- Camera Feed -->
     <img src="{{ url_for('attendance.attendance_feed') }}" width="640" height="480">
+
     <br><br>
-    <a href="/">Home</a> | <a href="/register_student">Register Student</a>
+
+    <style>
+    #face-scan {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 200px;
+        height: 200px;
+        border: 3px solid #00ffcc;
+        border-radius: 10px;
+        transform: translate(-50%, -50%);
+        animation: scan 2s infinite;
+    }
+
+    @keyframes scan {
+        0% { box-shadow: 0 0 10px #00ffcc; }
+        50% { box-shadow: 0 0 30px #00ffcc; }
+        100% { box-shadow: 0 0 10px #00ffcc; }
+    }
+
+    #success-msg {
+        position: fixed;
+        top: 40%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 40px;
+        color: lime;
+        display: none;
+    }
+    </style>
+
+    <a href="/">Home</a> | 
+    <a href="/register_student">Register Student</a>
+
+    <!-- ✅ JS (correct place, only once) -->
+    <script>
+        function showStatus(message, type="success") {
+            const box = document.getElementById("status-box");
+
+            box.innerText = message;
+            box.className = ""; // reset
+
+            if (type === "warning") {
+                box.classList.add("warning");
+            }
+
+            box.style.display = "block";
+
+            setTimeout(() => {
+                box.style.display = "none";
+                window.location.href = "/";
+            }, 3000);
+        }
+    </script>
+
 </body>
 </html>

@@ -6,4 +6,5 @@ pandas
 reportlab
 openpyxl
 sqlite-utils
+playsound
 

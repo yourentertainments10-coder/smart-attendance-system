@@ -1,7 +1,11 @@
 import mediapipe as mp
 import cv2
 
-mp_face_mesh = mp.solutions.face_mesh.FaceMesh()
+mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
+    static_image_mode=True,
+    max_num_faces=1,
+    refine_landmarks=False
+)
 
 def process_landmarks(frame):
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

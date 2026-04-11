@@ -63,9 +63,7 @@ def recognize_student(face_img):
             best_match = name
 
     print("Distance:", min_dist)
-    THRESHOLD = 1.3  # demo friendly
-    
-    if min_dist < THRESHOLD:
+    if min_dist < 0.4:
         return best_match
     return "Unknown"
 

@@ -9,7 +9,7 @@
     <div class="container">
         <h1>Attendance Analytics</h1>
         <nav>
-            <a href="/">Home</a> | <a href="/analytics">Analytics</a>
+            <a href="/">Home</a> | <a href="/reports">Reports</a>
         </nav>
         
         <!-- Stats Cards -->
@@ -33,25 +33,27 @@
         </div>
         
         <!-- Charts -->
-        <div class="charts-grid">
-            <div>
-                <h3>Daily Attendance (Last 7 Days)</h3>
-                <canvas id="dailyChart" height="200"></canvas>
-            </div>
-            <div>
-                <h3>Monthly Attendance (Last 6 Months)</h3>
-                <canvas id="monthlyChart" height="200"></canvas>
-            </div>
-        </div>
-        
-        <div>
-            <h3>Top Students by Attendance</h3>
-            <canvas id="studentChart" height="250"></canvas>
-        </div>
-        <div>
-            <h3>Student Engagement Levels</h3>
-            <canvas id="engagementChart" height="250"></canvas>
-        </div>
+<div class="charts-grid">
+    <div class="chart-box">
+        <h3>Daily Attendance (Last 7 Days)</h3>
+        <canvas id="dailyChart"></canvas>
+    </div>
+
+    <div class="chart-box">
+        <h3>Monthly Attendance (Last 6 Months)</h3>
+        <canvas id="monthlyChart"></canvas>
+    </div>
+</div>
+
+<div class="full-chart">
+    <h3>Top Students by Attendance</h3>
+    <canvas id="studentChart"></canvas>
+</div>
+
+<div class="full-chart">
+    <h3>Student Engagement Levels</h3>
+    <canvas id="engagementChart"></canvas>
+</div>
         
         <!-- Attendance Table -->
         <div class="table-section">

@@ -9,20 +9,23 @@ def record_engagement(student_id, avg_engagement):
     db = get_db()
     date = get_current_date()
     
-    try:
-        # Update or insert average for the day
-        db.execute('''
-            INSERT INTO engagement (student_id, date, avg_engagement)
-            VALUES (?, ?, ?)
-            ON CONFLICT(student_id, date) DO UPDATE SET
-            avg_engagement = excluded.avg_engagement
-        ''', (student_id, date, avg_engagement))
-        db.commit()
-        return True
-    except Exception as e:
-        print(f"Engagement record error: {e}")
-        db.rollback()
+    # पहले check करो
+    existing = db.execute('''
+        SELECT 1 FROM engagement 
+        WHERE student_id = ? AND date = ?
+    ''', (student_id, date)).fetchone()
+
+    if existing:
+        print(f"⚠️ Engagement already recorded for {student_id}")
         return False
+
+    db.execute("""
+        INSERT INTO engagement (student_id, date, avg_engagement)
+        VALUES (?, ?, ?)
+    """, (student_id, date, avg_engagement))
+    db.commit()
+    print(f"✅ Engagement saved for {student_id}")
+    return True
 
 def get_engagement_stats(limit=10):
     """

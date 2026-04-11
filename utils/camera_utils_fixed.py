@@ -45,8 +45,21 @@ def gen_frames():
     cap.release()
     cv2.destroyAllWindows()
 
-def register_student(folder_name):
+def register_student(student_id, name):
+    folder_name = f"{student_id}_{name}"
     path = f"datasets/student_faces/{folder_name}"
+    if os.path.exists(path):
+        print(f"Folder already exists: {path}. Skipping duplicate capture.")
+        return 0
+    
+    from database.db_connection import get_db
+    db = get_db()
+    db.execute("""
+        INSERT OR IGNORE INTO students (student_id, name, folder_name)
+        VALUES (?, ?, ?)
+    """, (student_id, name, folder_name))
+    db.commit()
+    
     os.makedirs(path, exist_ok=True)
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
@@ -98,9 +111,11 @@ def gen_frames_attendance(app):
         engagement_history = []
         recent_predictions = []
         last_marked = {}
+        last_shown = {}
         while True:
             try:
                 success, frame = cap.read()
+                current_time = time.time()
                 if not success:
                     break
                 faces = detect_faces(frame)
@@ -129,6 +144,11 @@ def gen_frames_attendance(app):
                     color = (0,255,0) if "Unknown" not in recog else (0,0,255)
                     cv2.putText(frame, f"Recognized: {recog}", (x, y-10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                    if "Unknown" not in recog:
+                        font = cv2.FONT_HERSHEY_SIMPLEX
+                        name_text = f"Welcome {recog}"
+                        cv2.putText(frame, name_text, (x, y + 50),
+                                    font, 0.8, (255, 255, 255), 2)
                     # Engagement tracking
                     engagement_data = process_landmarks(frame)
                     if engagement_data:
@@ -138,8 +158,17 @@ def gen_frames_attendance(app):
                 # MARK ATTENDANCE
                 if "Unknown" not in recog:
                     now = time.time()
+                    student_id = recog.split('_')[0]
+                    if student_id in last_shown:
+                        if current_time - last_shown[student_id] < 3:
+                            engagement_history = []  # Reset
+                            continue
+                        else:
+                            last_shown[student_id] = current_time
+                    else:
+                        last_shown[student_id] = current_time
+
                     if now - last_marked.get(recog, 0) > 60:
-                        student_id = recog.split('_')[0]
                         if engagement_history:
                             avg_engagement = sum(engagement_history) / len(engagement_history)
                         else:
@@ -149,8 +178,50 @@ def gen_frames_attendance(app):
 
                         if attendance_ok:
                             last_marked[recog] = now
-                            cv2.putText(frame, "ATTENDANCE ✓", (10, 70),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2)
+                            # glow rectangle around face
+                            x1, y1 = x, y
+                            x2, y2 = x+w, y+h
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+                            # pulsing glow
+                            for i in range(3):
+                                cv2.rectangle(frame, (x1-i, y1-i), (x2+i, y2+i), (0, 255, 0), 1)
+
+                            # center message
+                            cv2.putText(frame, "IDENTITY VERIFIED", (50, 50),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                        (0, 255, 0), 3)
+
+                            # scan animation line
+                            line_y = int(time.time() * 100 % frame.shape[0])
+                            cv2.line(frame, (0, line_y), (frame.shape[1], line_y), (0,255,0), 2)
+
+                            try:
+                                from playsound import playsound
+                                playsound("static/sounds/success.mp3")
+                            except:
+                                pass
+                        else:
+                            h, w, _ = frame.shape
+                            # semi-transparent overlay
+                            overlay = frame.copy()
+                            cv2.rectangle(overlay, (0, 0), (w, h), (0, 0, 0), -1)
+                            alpha = 0.4
+                            frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+
+                            # message
+                            text = "ALREADY MARKED ⚠️"
+                            font = cv2.FONT_HERSHEY_SIMPLEX
+                            font_scale = 1.2
+                            thickness = 3
+
+                            (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
+
+                            x = (w - text_width) // 2
+                            y = (h // 2)
+
+                            cv2.putText(frame, text, (x, y),
+                                        font, font_scale,
+                                        (0, 255, 255), thickness)
 
                         if not engagement_ok:
                             print("⚠️ Engagement not saved")
