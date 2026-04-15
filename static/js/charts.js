@@ -67,7 +67,7 @@ function initCharts(dailyData, monthlyData, studentData, engagementData = []) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'right' } }
+        plugins: { legend: { position: 'right',labels:{boxwidth:15,padding:15} } }
       }
     });
   }
@@ -78,7 +78,7 @@ function initCharts(dailyData, monthlyData, studentData, engagementData = []) {
     window.engagementChart = new Chart(engEl.getContext('2d'), {
       type: 'bar',
       data: {
-        labels: engagementData.map(e => e.id),
+        labels: engagementData.map(e => e.name || e.id),
         datasets: [{
           label: 'Engagement %',
           data: engagementData.map(e => e.avg || 0),

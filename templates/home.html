@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Smart Attendance System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        /* NAVBAR */
+        .navbar {
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            margin-left: 2rem;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #4CAF50;
+        }
+
+        .user-info {
+            color: #fff;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        /* HERO */
+        .hero {
+            text-align: center;
+            padding: 120px 20px 80px;
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .hero p {
+            font-size: 1.4em;
+            margin-bottom: 50px;
+            opacity: 0.9;
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            flex-wrap: wrap;
+            margin-bottom: 80px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+            padding: 20px 45px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-5px) scale(1.05);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 18px 35px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-3px);
+        }
+
+        /* GRID */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 60px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.85);
+            border-radius: 25px;
+            padding: 35px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            transition: all 0.4s;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-12px) scale(1.03);
+        }
+
+        .card-icon {
+            font-size: 3.5em;
+            margin-bottom: 25px;
+        }
+
+        .card h3 {
+            font-size: 1.6em;
+            margin-bottom: 15px;
+        }
+
+        .card p {
+            color: #777;
+        }
+
+        /* 🔒 LOCKED CARD */
+        .locked {
+            filter: blur(2px);
+            opacity: 0.6;
+            pointer-events: none;
+            position: relative;
+        }
+
+        .locked::after {
+            content: "🔒 Login Required";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        /* LOGIN HINT */
+        .login-hint {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5em; }
+            .buttons { flex-direction: column; align-items: center; }
+        }
+    </style>
+</head>
+
+<body>
+
+<nav class="navbar">
+    <div class="user-info">
+        {% if logged_in %}
+            Logged in as Admin
+        {% else %}
+            Student Mode
+        {% endif %}
+    </div>
+
+    <div class="nav-links">
+        {% if logged_in %}
+            <a href="/analytics">Analytics</a>
+            <a href="/class_monitor">Class Monitor</a>
+            <a href="/reports">Reports</a>
+            <a href="/logout">Logout</a>
+        {% else %}
+            <a href="/login">Login</a>
+        {% endif %}
+    </div>
+</nav>
+
+<section class="hero">
+    <h1>Smart Attendance System</h1>
+    <p>"AI-powered attendance tracking & classroom analytics"</p>
+
+    {% if not logged_in %}
+        <div class="login-hint">Login to access analytics, reports, and monitoring features</div>
+    {% endif %}
+
+    <div class="buttons">
+        <a href="/attendance" class="btn-primary">📸 Take Attendance</a>
+        <a href="/camera" class="btn-secondary">🎥 Camera Test</a>
+        <a href="/register_student" class="btn-secondary">➕ Register Student</a>
+    </div>
+</section>
+
+<section class="grid">
+
+    <div class="card" onclick="window.location='/register_student'">
+        <div class="card-icon">➕</div>
+        <h3>Register Student</h3>
+        <p>Add new students to the AI recognition database</p>
+    </div>
+
+    <div class="card {% if not logged_in %}locked{% endif %}" onclick="window.location='/class_monitor'">
+        <div class="card-icon">👨‍🏫</div>
+        <h3>Class Monitor</h3>
+        <p>Live classroom engagement tracking</p>
+    </div>
+
+    <div class="card {% if not logged_in %}locked{% endif %}" onclick="window.location='/analytics'">
+        <div class="card-icon">📊</div>
+        <h3>Analytics Dashboard</h3>
+        <p>View insights and statistics</p>
+    </div>
+
+    <div class="card {% if not logged_in %}locked{% endif %}" onclick="window.location='/reports'">
+        <div class="card-icon">📝</div>
+        <h3>Reports</h3>
+        <p>Generate attendance reports</p>
+    </div>
+
+</section>
+
+</body>
+</html>

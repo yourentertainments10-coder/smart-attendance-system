@@ -2,9 +2,12 @@ from flask import Blueprint, jsonify,current_app
 from database.db_connection import get_db
 from utils.date_utils import get_current_date
 from flask import render_template
+from routes.auth_routes import login_required
+
 analytics_bp = Blueprint('analytics', __name__)
 
 
+@login_required
 @analytics_bp.route('/analytics')
 def analytics_page():
     return render_template('analytics.html')
@@ -102,9 +105,10 @@ def analytics_data():
 
     # 🔹 Engagement stats (NO CHANGE)
     engagement_stats = db.execute('''
-        SELECT e.student_id, AVG(e.avg_engagement)*100 as avg_eng
+        SELECT e.student_id, s.name, AVG(e.avg_engagement)*100 as avg_eng
         FROM engagement e
-        GROUP BY e.student_id
+        JOIN students s ON s.student_id = e.student_id
+        GROUP BY e.student_id, s.name
         ORDER BY avg_eng DESC
         LIMIT 10
     ''').fetchall()
@@ -112,6 +116,7 @@ def analytics_data():
     engagement_data = [
         {
             'id': row['student_id'],
+            'name': row['name'],
             'avg': round(row['avg_eng'], 1)
         }
         for row in engagement_stats
@@ -132,3 +137,5 @@ def analytics_data():
         'recent_attendance': recent_data,
         'engagement': engagement_data
     })
+
+

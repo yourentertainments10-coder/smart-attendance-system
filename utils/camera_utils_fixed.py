@@ -9,82 +9,85 @@ from services.engagement_detection import process_landmarks
 import os
 import time
 from models.attendance_model import mark_attendance
-from models.engagement_model import record_engagement
 from services.face_recognition_service import recognize_student
-from utils.date_utils import get_current_date
+
+last_marked = {}
+cooldown_active = False
+cooldown_start = 0
+last_seen_time = 0
+FACE_TIMEOUT = 2
+
+
 def gen_frames():
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
         print("❌ Camera failed to open")
         return
+
     print("✅ Camera started")
-    while True:
-        success, frame = cap.read()
-        if not success:
-            print("❌ Frame not captured")
-            break
-        faces = detect_faces(frame)
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        engagement_data = process_landmarks(frame)
-        if engagement_data and engagement_data[0]:
-            landmarks, engagement_score, mesh_color = engagement_data
-            for face_landmarks in landmarks:
-                mp_drawing.draw_landmarks(
-                    image=frame,
-                    landmark_list=face_landmarks,
-                    connections=mp_face_mesh.FACEMESH_TESSELATION,
-                    landmark_drawing_spec=None,
-                    connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_tesselation_style()
-                )
-            cv2.putText(frame, f"Engagement: {int(engagement_score*100)}%", (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, mesh_color, 2)
-        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        frame_bytes = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-    cap.release()
-    cv2.destroyAllWindows()
+    try:
+        while True:
+            try:
+                success, frame = cap.read()
+            except cv2.error as e:
+                print("Camera stream stopped:", e)
+                break
+
+            if not success:
+                print("❌ Frame not captured")
+                time.sleep(0.1)
+                continue
+            if frame is None:
+                continue
+
+            faces = detect_faces(frame)
+            for (x, y, w, h) in faces:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            frame_bytes = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
 
 def register_student(student_id, name):
-    folder_name = f"{student_id}_{name}"
-    path = f"datasets/student_faces/{folder_name}"
+    folder_name = f"{student_id}_{name.replace(' ', '_')}"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "..", "datasets", "student_faces", folder_name)
     if os.path.exists(path):
         print(f"Folder already exists: {path}. Skipping duplicate capture.")
         return 0
-    
-    from database.db_connection import get_db
-    db = get_db()
-    db.execute("""
-        INSERT OR IGNORE INTO students (student_id, name, folder_name)
-        VALUES (?, ?, ?)
-    """, (student_id, name, folder_name))
-    db.commit()
-    
+
     os.makedirs(path, exist_ok=True)
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
-        print("❌ Camera failed to open")
+        print("❌ Camera busy - close /attendance or /class_monitor first!")
         return 0
+
     saved = 0
     print(f"Capturing 20 face images for {folder_name}. Press 'q' to quit early.")
     while saved < 20:
         ret, frame = cap.read()
-        if not ret:
+        print(f"Frame ret: {ret}")
+        if not ret or frame is None:
+            print("❌ Frame not captured")
             continue
+
         faces = detect_faces(frame)
+        print(f"Faces detected: {len(faces)}")
         if len(faces) > 0:
             (x, y, w, h) = faces[0]
             pad = 20
             x = max(0, x - pad)
             y = max(0, y - pad)
-            w = w + 2*pad
-            h = h + 2*pad
+            w = w + 2 * pad
+            h = h + 2 * pad
             if w > 50 and h > 50:
-                face_crop = frame[y:y+h, x:x+w]
-                # Resize + improve quality
-                face_crop = cv2.resize(face_crop, (300, 300))
-                face_crop = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
-                face_crop = cv2.cvtColor(face_crop, cv2.COLOR_RGB2BGR)
+                face_crop = frame[y:y + h, x:x + w]
+                face_crop = cv2.resize(face_crop, (160, 160))
                 filename = f"{path}/img{saved}.jpg"
                 cv2.imwrite(filename, face_crop)
                 saved += 1
@@ -96,28 +99,51 @@ def register_student(student_id, name):
         if key == ord('q'):
             break
         time.sleep(0.2)
+
     cap.release()
     cv2.destroyAllWindows()
     print(f"Registration complete: {saved} images saved for {folder_name}")
+    from services.face_recognition_service import load_dataset
+    load_dataset()
+    print("✅ Dataset reloaded")
     return saved
 
+
 def gen_frames_attendance(app):
+    global last_marked, cooldown_active, cooldown_start, last_seen_time
+    global status_message
+    COOLDOWN_TIME = 3
+    MESSAGE_GAP = 2
+
+
     with app.app_context():
         cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not cap.isOpened():
             print("❌ Camera failed")
             return
+
         print("✅ Attendance system running")
-        engagement_history = []
+        cooldown_active = False
+        cooldown_start = 0
+        last_seen_time = 0
         recent_predictions = []
-        last_marked = {}
         last_shown = {}
-        while True:
-            try:
-                success, frame = cap.read()
+
+        try:
+            while True:
+                try:
+                    success, frame = cap.read()
+                except cv2.error as e:
+                    print("Attendance camera stream stopped:", e)
+                    break
+
                 current_time = time.time()
                 if not success:
-                    break
+                    time.sleep(0.1)
+                    continue
+                if frame is None:
+                    continue
+
                 faces = detect_faces(frame)
                 recog = "Unknown"
                 if len(faces) > 0:
@@ -125,115 +151,73 @@ def gen_frames_attendance(app):
                     pad = 20
                     x = max(0, x - pad)
                     y = max(0, y - pad)
-                    w = w + 2*pad
-                    h = h + 2*pad
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
-                    face_crop = frame[y:y+h, x:x+w]
-                    recog_single = recognize_student(face_crop)
-                    if recog_single is None:
-                        recog_single = "Unknown"
+                    w = w + 2 * pad
+                    h = h + 2 * pad
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                    face_crop = frame[y:y + h, x:x + w]
+                    recog_single = recognize_student(face_crop) or "Unknown"
 
                     recent_predictions.append(recog_single)
                     if len(recent_predictions) > 5:
                         recent_predictions.pop(0)
 
-                    # majority voting
                     recog = max(set(recent_predictions), key=recent_predictions.count)
-
                     print("Recognized:", recog)
-                    color = (0,255,0) if "Unknown" not in recog else (0,0,255)
-                    cv2.putText(frame, f"Recognized: {recog}", (x, y-10),
+                    color = (0, 255, 0) if "Unknown" not in recog else (0, 0, 255)
+                    cv2.putText(frame, f"Recognized: {recog}", (x, y - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                     if "Unknown" not in recog:
-                        font = cv2.FONT_HERSHEY_SIMPLEX
-                        name_text = f"Welcome {recog}"
-                        cv2.putText(frame, name_text, (x, y + 50),
-                                    font, 0.8, (255, 255, 255), 2)
-                    # Engagement tracking
-                    engagement_data = process_landmarks(frame)
-                    if engagement_data:
-                        _, eng_score, _ = engagement_data
-                        engagement_history.append(eng_score)
+                        last_seen_time = time.time()
+                        cv2.putText(frame, f"Welcome {recog}", (x, y + 50),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
-                # MARK ATTENDANCE
                 if "Unknown" not in recog:
                     now = time.time()
                     student_id = recog.split('_')[0]
-                    if student_id in last_shown:
-                        if current_time - last_shown[student_id] < 3:
-                            engagement_history = []  # Reset
-                            continue
-                        else:
-                            last_shown[student_id] = current_time
+                    
+                    if student_id in last_shown and now - last_shown[student_id] < MESSAGE_GAP:
+                        pass
                     else:
-                        last_shown[student_id] = current_time
+                        last_shown[student_id] = now
+   
+                    if student_id in last_marked and now - last_marked[student_id] >= MESSAGE_GAP:
+                        cv2.putText(frame, "ALREADY MARKED", (50, 80),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 3)
 
-                    if now - last_marked.get(recog, 0) > 60:
-                        if engagement_history:
-                            avg_engagement = sum(engagement_history) / len(engagement_history)
-                        else:
-                            avg_engagement = 0.0
+                        status_message = "ALREADY MARKED ⚠️"
+                        cooldown_active = True
+                        cooldown_start = now
+
+                    else:
                         attendance_ok = mark_attendance(student_id, recog)
-                        engagement_ok = record_engagement(student_id, avg_engagement)
 
                         if attendance_ok:
-                            last_marked[recog] = now
-                            # glow rectangle around face
-                            x1, y1 = x, y
-                            x2, y2 = x+w, y+h
-                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                            # pulsing glow
-                            for i in range(3):
-                                cv2.rectangle(frame, (x1-i, y1-i), (x2+i, y2+i), (0, 255, 0), 1)
-
-                            # center message
-                            cv2.putText(frame, "IDENTITY VERIFIED", (50, 50),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                        (0, 255, 0), 3)
-
-                            # scan animation line
-                            line_y = int(time.time() * 100 % frame.shape[0])
-                            cv2.line(frame, (0, line_y), (frame.shape[1], line_y), (0,255,0), 2)
-
-                            try:
-                                from playsound import playsound
-                                playsound("static/sounds/success.mp3")
-                            except:
-                                pass
+                            last_marked[student_id] = now
+                            status_message = "ATTENDANCE MARKED ✅"
                         else:
-                            h, w, _ = frame.shape
-                            # semi-transparent overlay
-                            overlay = frame.copy()
-                            cv2.rectangle(overlay, (0, 0), (w, h), (0, 0, 0), -1)
-                            alpha = 0.4
-                            frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+                            status_message = "ALREADY MARKED ⚠️"
 
-                            # message
-                            text = "ALREADY MARKED ⚠️"
-                            font = cv2.FONT_HERSHEY_SIMPLEX
-                            font_scale = 1.2
-                            thickness = 3
+                        cooldown_active = True
+                        cooldown_start = now
 
-                            (text_width, text_height), _ = cv2.getTextSize(text, font, font_scale, thickness)
+                if cooldown_active:
+                    elapsed = time.time() - cooldown_start
 
-                            x = (w - text_width) // 2
-                            y = (h // 2)
+                    if elapsed < COOLDOWN_TIME:
+                        cv2.putText(frame, status_message, (50, 80),
+                                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,255,0), 3)
 
-                            cv2.putText(frame, text, (x, y),
-                                        font, font_scale,
-                                        (0, 255, 255), thickness)
+                        cv2.putText(frame, "NEXT STUDENT ->", (50, 130),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,0), 2)
+                    else:
+                        cooldown_active = False       
 
-                        if not engagement_ok:
-                            print("⚠️ Engagement not saved")
-
-                        engagement_history = []  # Reset
-
-                # Encode and stream
                 ret, buffer = cv2.imencode('.jpg', frame)
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            except Exception as e:
-                print("Frame processing error:", e)
-                continue
-        cap.release()
+        except Exception as e:
+            print("Frame processing error:", e)
+        finally:
+            cap.release()
+            cv2.destroyAllWindows()

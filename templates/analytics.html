@@ -2,130 +2,145 @@
 <html>
 <head>
     <title>Attendance Analytics Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
+
 <body>
-    <div class="container">
-        <h1>Attendance Analytics</h1>
-        <nav>
-            <a href="/">Home</a> | <a href="/reports">Reports</a>
-        </nav>
-        
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>Total Students</h3>
-                <span id="total-students" class="stat-number">0</span>
-            </div>
-            <div class="stat-card green">
-                <h3>Present Today</h3>
-                <span id="present" class="stat-number">0</span>
-            </div>
-            <div class="stat-card red">
-                <h3>Absent Today</h3>
-                <span id="absent" class="stat-number">0</span>
-            </div>
-            <div class="stat-card">
-                <h3>Attendance %</h3>
-                <span id="percentage" class="stat-number">0%</span>
-            </div>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="nav-title">📊 Dashboard</div>
+    <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/attendance">Attendance</a>
+        <a href="/reports">Reports</a>
+        <a href="/class_monitor">Monitor</a>
+        <a href="/logout">Logout</a>
+    </div>
+</nav>
+
+<div class="container">
+
+    <h1>📊 Attendance Analytics Dashboard</h1>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Students</h3>
+            <span id="total-students" class="stat-number">0</span>
         </div>
-        
-        <!-- Charts -->
-<div class="charts-grid">
-    <div class="chart-box">
-        <h3>Daily Attendance (Last 7 Days)</h3>
-        <canvas id="dailyChart"></canvas>
-    </div>
 
-    <div class="chart-box">
-        <h3>Monthly Attendance (Last 6 Months)</h3>
-        <canvas id="monthlyChart"></canvas>
-    </div>
-</div>
+        <div class="stat-card green">
+            <h3>Present Today</h3>
+            <span id="present" class="stat-number">0</span>
+        </div>
 
-<div class="full-chart">
-    <h3>Top Students by Attendance</h3>
-    <canvas id="studentChart"></canvas>
-</div>
+        <div class="stat-card red">
+            <h3>Absent Today</h3>
+            <span id="absent" class="stat-number">0</span>
+        </div>
 
-<div class="full-chart">
-    <h3>Student Engagement Levels</h3>
-    <canvas id="engagementChart"></canvas>
-</div>
-        
-        <!-- Attendance Table -->
-        <div class="table-section">
-            <h3>Recent Attendance Records</h3>
-            <div class="table-container">
-                <table id="attendanceTable">
-                    <thead>
-                        <tr>
-                            <th>Student ID</th>
-                            <th>Name</th>
-                            <th>Date</th>
-                            <th>Time</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendance-body">
-                        <!-- Loaded by JS -->
-                    </tbody>
-                </table>
-            </div>
-            <button onclick="refreshDashboard()">Refresh Now</button>
-            <p>Last updated: <span id="last-update">--</span></p>
+        <div class="stat-card">
+            <h3>Attendance %</h3>
+            <span id="percentage" class="stat-number">0%</span>
         </div>
     </div>
-    
-    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
-    <script>
-        function loadTable(data) {
-            let tbody = document.getElementById("attendance-body");
-            tbody.innerHTML = "";
-            if (data.recent_attendance && data.recent_attendance.length > 0) {
-            data.recent_attendance.forEach((row, index) => {
-                    tbody.innerHTML += `
-                        <tr style="${index === 0 ? 'background:#e8f5e9;font-weight:bold;' : ''}">\n                            <td>${row.id}</td>
-                            <td>${row.name}</td>
-                            <td>${row.date}</td>
-                            <td>${row.time}</td>
-                            <td><span class="status-present">Present</span></td>
-                        </tr>`;
-                });
-            } else {
-                tbody.innerHTML = '<tr><td colspan="5">No recent records</td></tr>';
-            }
-        }
 
-        function refreshDashboard() {
-            fetch('/analytics/analytics_data')
-                .then(r => r.json())
-                .then(data => {
-                    // Stats
-                    document.getElementById('total-students').textContent = data.stats.total;
-                    document.getElementById('present').textContent = data.stats.present;
-                    document.getElementById('absent').textContent = data.stats.absent;
-                    document.getElementById('percentage').textContent = data.stats.percentage + '%';
-                    
-                    // Charts
-                    initCharts(data.daily, data.monthly, data.students, data.engagement || []);
-                    
-                    // Table
-                    loadTable(data);
-                    
-                    // Update time
-                    document.getElementById('last-update').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-                });
-        }
+    <!-- CHARTS -->
+    <div class="charts-grid">
+        <div class="chart-box">
+            <h3>Daily Attendance (Last 7 Days)</h3>
+            <canvas id="dailyChart"></canvas>
+        </div>
 
-        document.addEventListener("DOMContentLoaded", function () {
-            refreshDashboard();
-            // Auto refresh every 30 seconds
-            setInterval(refreshDashboard, 30000);
+        <div class="chart-box">
+            <h3>Monthly Attendance (Last 6 Months)</h3>
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </div>
+
+    <div class="full-chart">
+        <h3>Top Students by Attendance</h3>
+        <canvas id="studentChart"></canvas>
+    </div>
+
+    <div class="full-chart">
+        <h3>Student Engagement Levels</h3>
+        <canvas id="engagementChart"></canvas>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-section">
+        <h3>Recent Attendance Records</h3>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="attendance-body"></tbody>
+            </table>
+        </div>
+
+        <button onclick="refreshDashboard()">Refresh</button>
+        <p id="last-update"></p>
+    </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+
+<script>
+function loadTable(data) {
+    let tbody = document.getElementById("attendance-body");
+    tbody.innerHTML = "";
+
+    if (data.recent_attendance?.length) {
+        data.recent_attendance.forEach(row => {
+            tbody.innerHTML += `
+            <tr>
+                <td>${row.id}</td>
+                <td>${row.name}</td>
+                <td>${row.date}</td>
+                <td>${row.time}</td>
+                <td><span class="status-present">Present</span></td>
+            </tr>`;
         });
-    </script>
+    }
+}
+
+function refreshDashboard() {
+    fetch('/analytics/analytics_data')
+        .then(r => r.json())
+        .then(data => {
+
+            document.getElementById('total-students').textContent = data.stats.total;
+            document.getElementById('present').textContent = data.stats.present;
+            document.getElementById('absent').textContent = data.stats.absent;
+            document.getElementById('percentage').textContent = data.stats.percentage + '%';
+
+            initCharts(data.daily, data.monthly, data.students, data.engagement || []);
+            loadTable(data);
+
+            document.getElementById('last-update').textContent =
+                "Updated: " + new Date().toLocaleTimeString();
+        });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    refreshDashboard();
+    setInterval(refreshDashboard, 30000);
+});
+</script>
 
 </body>
 </html>

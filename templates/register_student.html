@@ -1,30 +1,64 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Register New Student</title>
-    <style>
-        body { font-family: Arial; max-width: 500px; margin: 100px auto; padding: 20px; }
-        input, button { width: 100%; padding: 10px; margin: 10px 0; }
-        button { background: #4CAF50; color: white; border: none; cursor: pointer; }
-        .flash { padding: 10px; margin: 10px 0; border-radius: 4px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
 <body>
-    <h1>Register New Student</h1>
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            {% for message in messages %}
-                <div class="flash {{ 'success' if 'Success' in message else 'error' }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    <form method="POST">
-        <input type="text" name="student_id" placeholder="Student ID (e.g. 101)" required>
-        <input type="text" name="name" placeholder="Full Name (e.g. Rahul Sharma)" required>
-        <button type="submit">Start Capture (20 Face Images)</button>
-    </form>
-    <p><small>Camera opens, show face clearly, press 'q' to stop early. Only face-detected frames saved.</small></p>
+    <div class="page-center">
+        <div class="form-card">
+        <div class="page-title">
+            <h1>➕ Register Student</h1>
+            <p>Step 1: Enter details → Step 2: Capture face images</p>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="status-badge status-success">{{ messages[0] }}</div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="form-group">
+                <label for="student_id">Student ID</label>
+                <input type="text" id="student_id" name="student_id" placeholder="e.g. 101" required>
+            </div>
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" placeholder="e.g. Rahul Sharma" required>
+            </div>
+            <div class="card-actions">
+                <button type="submit" class="btn btn-primary" form="register-form">Start Face Capture</button>
+            </div>
+        </div>
+
+<form id="register-form" method="POST">
+    <input type="text" name="student_id" id="student_id_input" style="display: none;">
+    <input type="text" name="name" id="name_input" style="display: none;">
+</form>
+
+        <div class="action-bar">
+            <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <script>
+        document.querySelector('.btn-primary').addEventListener('click', function () {
+            const id = document.getElementById('student_id').value;
+            const name = document.getElementById('name').value;
+
+            if (!id || !name) {
+                alert("Enter Student ID and Name");
+                return;
+            }
+
+            document.getElementById('student_id_input').value = id;
+            document.getElementById('name_input').value = name;
+
+            document.getElementById('register-form').submit();
+        });
+        </script>
+    </div>
 </body>
 </html>
+

@@ -1,104 +1,63 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Live Face Recognition Attendance</title>
-
-    <!-- ✅ CSS (correct place) -->
-    <style>
-        body {
-            text-align: center;
-            font-family: Arial, sans-serif;
-        }
-
-        #status-box {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 25px;
-            background: green;
-            color: white;
-            font-size: 18px;
-            border-radius: 8px;
-            display: none;
-            z-index: 999;
-        }
-
-        #status-box.warning {
-            background: orange;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 </head>
-
 <body>
+    <div class="container">
+        <div class="page-title">
+            <h1>📸 Live Face Recognition</h1>
+            <p>Look at camera - AI will mark attendance automatically</p>
+        </div>
 
-    <!-- ✅ Status Message Box -->
-    <div id="status-box"></div>
+        <div class="status-badge" id="status-box" style="display: none;">
+            Status message will appear here
+        </div>
 
-<h1>Live Face Recognition Attendance</h1>
-    <p>Look at camera - recognized student overlay shown</p>
+        <div class="camera-container">
+            <img id="camera-feed" src="{{ url_for('attendance.attendance_feed') }}" class="camera-feed" alt="Live Camera">
+        </div>
 
-    <!-- FaceID Style Animation -->
-    <div id="face-scan"></div>
-    <div id="success-msg">✅ Attendance Marked</div>
+        <div class="action-bar">
+            <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
 
-    <!-- Camera Feed -->
-    <img src="{{ url_for('attendance.attendance_feed') }}" width="640" height="480">
-
-    <br><br>
-
-    <style>
-    #face-scan {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 200px;
-        height: 200px;
-        border: 3px solid #00ffcc;
-        border-radius: 10px;
-        transform: translate(-50%, -50%);
-        animation: scan 2s infinite;
-    }
-
-    @keyframes scan {
-        0% { box-shadow: 0 0 10px #00ffcc; }
-        50% { box-shadow: 0 0 30px #00ffcc; }
-        100% { box-shadow: 0 0 10px #00ffcc; }
-    }
-
-    #success-msg {
-        position: fixed;
-        top: 40%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 40px;
-        color: lime;
-        display: none;
-    }
-    </style>
-
-    <a href="/">Home</a> | 
-    <a href="/register_student">Register Student</a>
-
-    <!-- ✅ JS (correct place, only once) -->
-    <script>
-        function showStatus(message, type="success") {
-            const box = document.getElementById("status-box");
-
-            box.innerText = message;
-            box.className = ""; // reset
-
-            if (type === "warning") {
-                box.classList.add("warning");
+        <audio id="beep" src="{{ url_for('static', filename='sounds/success.mp3') }}" preload="auto"></audio>
+        <script>
+            let lastMessage = "";
+            function triggerBeep(msg) {
+                if (msg !== lastMessage) {
+                    document.getElementById("beep").play().catch(()=>{});
+                    lastMessage = msg;
+                }
             }
 
-            box.style.display = "block";
+            function showStatus(message, type="success") {
+                triggerBeep(message);
+                const box = document.getElementById("status-box");
+                box.textContent = message;
+                box.className = `status-badge status-${type}`;
+                box.style.display = "inline-block";
+                
+                setTimeout(() => {
+                    box.style.display = "none";
+                    if (type === "success") {
+                        window.location.href = "/";
+                    }
+                }, 4000);
+            }
 
-            setTimeout(() => {
-                box.style.display = "none";
-                window.location.href = "/";
-            }, 3000);
-        }
-    </script>
-
+            // Listen for status messages from server (via query params or SSE)
+            window.addEventListener('message', function(event) {
+                if (event.data.type === 'attendance_status') {
+                    showStatus(event.data.message, event.data.status);
+                }
+            });
+        </script>
+    </div>
 </body>
 </html>
+

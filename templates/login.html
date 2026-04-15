@@ -1,23 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Login - Smart Attendance System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Admin Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
+
 <body>
-    <div class="login-container">
-        <h1>Admin Login</h1>
+
+<div class="page-center">
+    <div class="form-card">
+
+        <h1 class="title">🔐 Admin Login</h1>
+
         {% with messages = get_flashed_messages() %}
             {% if messages %}
-                <div class="alert">{{ messages[0] }}</div>
+                <div class="alert-success">{{ messages[0] }}</div>
             {% endif %}
         {% endwith %}
+
         <form method="POST">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit">Login</button>
+
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Enter username" required>
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Enter password" required>
+            </div>
+
+            <button class="btn btn-primary">Login</button>
+
         </form>
-        <p><em>Demo: admin / admin123</em></p>
+
+        <p class="demo-text">Demo: admin / admin123</p>
+
     </div>
+</div>
+
 </body>
 </html>

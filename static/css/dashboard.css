@@ -1,0 +1,271 @@
+/* RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* BODY */
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  min-height: 100vh;
+  padding-top: 80px;
+}
+
+/* NAVBAR */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(10px);
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+}
+
+.nav-title {
+  color: white;
+  font-weight: bold;
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.nav-links a {
+  color: white;
+  text-decoration: none;
+}
+
+.nav-links a:hover {
+  color: #4CAF50;
+}
+
+/* CONTAINER */
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
+}
+
+/* HEADING */
+h1 {
+  color: white;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+/* STATS */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 30px;
+}
+
+.stat-card {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.stat-card.green {
+  background: #4CAF50;
+  color: white;
+}
+
+.stat-card.red {
+  background: #f44336;
+  color: white;
+}
+
+.stat-number {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+/* CHARTS */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.chart-box {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  height: 350px;
+}
+
+.full-chart {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 30px;
+  height: 400px;
+}
+
+/* FIX CHART SIZE */
+.chart-box canvas,
+.full-chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* TABLE */
+.table-section {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 40px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  text-align: center;
+}
+
+th {
+  background: #eee;
+}
+
+.status-present {
+  color: green;
+  font-weight: bold;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* CENTER FORM PAGES */
+.page-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px); /* minus navbar */
+}
+
+.form-card {
+  background: white;
+  padding: 40px;
+  border-radius: 15px;
+  width: 400px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+/* CENTER LAYOUT (FOR FORMS) */
+.page-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+}
+
+.form-card {
+  width: 100%;
+  max-width: 500px;
+  background: rgba(255,255,255,0.95);
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+/* TITLE */
+.title {
+  text-align: center;
+  font-size: 28px;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #666;
+  margin-bottom: 30px;
+}
+
+/* SECTIONS */
+.section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.section h3 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+/* INPUTS */
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  margin-top: 5px;
+}
+
+/* BUTTON */
+.btn {
+  margin-top: 10px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #4CAF50;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #43a047;
+}
+
+/* REPORT LIST */
+.report-list {
+  padding-left: 20px;
+}
+
+.report-list li {
+  margin-bottom: 8px;
+}
+/* ALERT */
+.alert-success {
+  background: rgba(76,175,80,0.2);
+  color: #2e7d32;
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+/* DEMO TEXT */
+.demo-text {
+  margin-top: 15px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+}

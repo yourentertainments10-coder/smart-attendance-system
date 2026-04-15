@@ -6,9 +6,9 @@ import io
 import os
 from database.db_connection import get_db
 from werkzeug.utils import secure_filename
-
+from routes.auth_routes import login_required
 report_bp = Blueprint('reports', __name__, template_folder='templates')
-
+@login_required
 @report_bp.route('/reports')
 def reports_page():
     db = get_db()

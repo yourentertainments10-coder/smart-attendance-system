@@ -1,22 +1,33 @@
-from flask import Flask, Response, g, session
+from flask import Flask, Response, g, session,render_template
 from routes.auth_routes import auth_bp
 from routes.student_routes import student_bp
 from routes.attendance_routes import attendance_bp
 from routes.analytics_routes_fixed import analytics_bp
 from routes.report_routes import report_bp
+from routes.class_monitor_routes import class_monitor_bp
 from utils.camera_utils_fixed import gen_frames
 from services.face_recognition_service import load_dataset
 from database.db_connection import get_db, close_db, init_app
 from flask import current_app
 load_dataset()
 
+
+def ensure_schema_migrations(db):
+    columns = {row['name'] for row in db.execute("PRAGMA table_info(engagement)").fetchall()}
+    if 'timestamp' not in columns:
+        db.execute("ALTER TABLE engagement ADD COLUMN timestamp TEXT")
+        db.execute("UPDATE engagement SET timestamp = date || ' 00:00:00' WHERE timestamp IS NULL AND date IS NOT NULL")
+        db.commit()
+
+
 app = Flask(__name__)
-app.secret_key = 'smart_attendance_secret_dev_key_change_in_prod'
+app.secret_key = 'smart_attendance_secret_dev_key'
 app.register_blueprint(auth_bp)
 app.register_blueprint(student_bp)
 app.register_blueprint(attendance_bp)
 app.register_blueprint(analytics_bp)
 app.register_blueprint(report_bp)
+app.register_blueprint(class_monitor_bp)
 init_app(app)
 
 # Auto-initialize database on startup
@@ -28,10 +39,10 @@ with app.app_context():
         with open('database/seed_data.sql', 'r') as f:
             db.executescript(f.read())
         db.commit()
+        ensure_schema_migrations(db)
         print('✓ Database auto-initialized (tables created)')
     except Exception as e:
         print(f'Note: DB init skipped - {e}')
-
 
 import os
 @app.route('/init_db')
@@ -52,6 +63,7 @@ def init_db():
             db.executescript(f.read())
 
         db.commit()
+        ensure_schema_migrations(db)
 
         print('Database initialized successfully!')
         return 'Database initialized ✓ students/attendance tables + seed data.'
@@ -61,31 +73,13 @@ def init_db():
         return f"Database initialization failed: {str(e)}"
 @app.route("/")
 def home():
-    return """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Smart Attendance System</title>
-</head>
-<body>
-    <h1>Smart Attendance System</h1>
-    <nav>
-        <a href="/camera">Live Camera</a> |
-        <a href="/register_student">Register Student</a> |
-        <a href="/attendance">Take Attendance</a> |
-        <a href="/analytics">Analytics Dashboard</a> |
-        <a href="/reports">Reports</a>
-    </nav>
-    <img src="/camera" width="640" height="480">
-</body>
-</html>
-    """
-
-
+    return render_template('home.html', logged_in=session.get('logged_in', False))
 @app.route("/camera")
 def camera():
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
+    print(app.url_map)
     app.run(debug=True)
+

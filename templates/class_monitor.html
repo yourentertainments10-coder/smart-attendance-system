@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Class Engagement Monitor</title>
+    <style>
+        body { font-family: Arial; margin: 0; padding: 20px; background: #1a1a1a; color: white; }
+        .container { display: flex; }
+        .video { flex: 1; }
+        .students { width: 300px; background: #333; padding: 20px; margin-left: 20px; }
+        .student { padding: 10px; margin: 10px 0; background: #444; border-radius: 5px; }
+        .name { font-weight: bold; }
+        .score { font-size: 24px; color: #4caf50; }
+        .phone { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>🧑‍🎓 Class Engagement Monitor</h1>
+    <div class="container">
+        <div class="video">
+            <img src="{{ url_for('class_monitor.class_monitor_feed') }}" width="640" height="480">
+        </div>
+        <div class="students" id="students">
+            <h3>Active Students</h3>
+            <div id="student-list">No students detected</div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/class_monitor.js') }}"></script>
+</body>
+</html>
+

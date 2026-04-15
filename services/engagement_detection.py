@@ -4,12 +4,15 @@ import cv2
 mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
     static_image_mode=True,
     max_num_faces=1,
-    refine_landmarks=False
+    refine_landmarks=True
 )
 
 def process_landmarks(frame):
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = mp_face_mesh.process(rgb)
+    try: results = mp_face_mesh.process(rgb)
+    except Exception as e:
+        print("Frame processing error:", e)
+        return None
 
     if not results.multi_face_landmarks:
         return None
