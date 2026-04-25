@@ -8,4 +8,5 @@ openpyxl
 sqlite-utils
 ultralytics
 playsound
+face-recognition
 

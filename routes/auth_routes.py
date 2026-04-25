@@ -24,14 +24,14 @@ def login():
             session['logged_in'] = True
             session['user_id'] = user['id']
             return redirect(url_for('analytics.analytics_page'))
-        flash('Invalid credentials')
+        flash('Invalid credentials', 'error')
     return render_template('login.html')
 
 @auth_bp.route('/logout')
 def logout():
     session.pop('logged_in', None)
     session.pop('user_id', None)
-    flash('Logged out successfully')
+    flash('Logged out successfully', 'success')
     return redirect(url_for('auth.login'))
 
 
@@ -45,22 +45,22 @@ def change_password():
         confirm_password = request.form['confirm_password']
         
         if new_password != confirm_password:
-            flash('New passwords do not match')
+            flash('New passwords do not match','error')
             return render_template('change_password.html')
         
         if len(new_password) < 6:
-            flash('New password must be at least 6 characters')
+            flash('New password must be at least 6 characters','error')
             return render_template('change_password.html')
         
         user = get_user_by_id(user_id)
         if not check_password_hash(user['password_hash'], current_password):
-            flash('Current password incorrect')
+            flash('Current password incorrect','error')
             return render_template('change_password.html')
         
         from werkzeug.security import generate_password_hash
         new_hash = generate_password_hash(new_password)
         update_user_password(user_id, new_hash)
-        flash('Password changed successfully')
+        flash('Password changed successfully', 'success')
         return redirect(url_for('analytics.analytics_page'))
     print(user)
     print(dict(user))
@@ -75,22 +75,22 @@ def reset_password():
         confirm_password = request.form['confirm_password']
         
         if new_password != confirm_password:
-            flash('New passwords do not match')
+            flash('New passwords do not match', 'error')
             return render_template('reset_password.html')
         
         if len(new_password) < 6:
-            flash('New password must be at least 6 characters')
+            flash('New password must be at least 6 characters', 'error')
             return render_template('reset_password.html')
         
         user = get_user(username)
         if not user:
-            flash('Username not found')
+            flash('Username not found', 'error')
             return render_template('reset_password.html')
         
         from werkzeug.security import generate_password_hash
         new_hash = generate_password_hash(new_password)
         update_user_password(user['id'], new_hash)
-        flash('Password reset successfully. Please login with new password.')
+        flash('Password reset successfully. Please login with new password.', 'success')
         return redirect(url_for('auth.login'))
     
     return render_template('reset_password.html')

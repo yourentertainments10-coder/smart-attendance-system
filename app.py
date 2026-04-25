@@ -73,13 +73,14 @@ def init_db():
         return f"Database initialization failed: {str(e)}"
 @app.route("/")
 def home():
-    return render_template('home.html', logged_in=session.get('logged_in', False))
+    session.pop('logged_in', None)
+    session.pop('user_id', None)
+    return render_template('home.html', logged_in=False)
 @app.route("/camera")
 def camera():
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
-    print(app.url_map)
-    app.run(debug=True)
+    app.run(debug=False, threaded=True)
 

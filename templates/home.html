@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Smart Attendance System</title>
+    <title>AI Attendance and Engagement Monitoring System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -184,7 +183,7 @@
 <nav class="navbar">
     <div class="user-info">
         {% if logged_in %}
-            Logged in as Admin
+            Administrator Panel
         {% else %}
             Student Mode
         {% endif %}
@@ -203,8 +202,8 @@
 </nav>
 
 <section class="hero">
-    <h1>Smart Attendance System</h1>
-    <p>"AI-powered attendance tracking & classroom analytics"</p>
+    <h1>AI-Powered Attendance & Engagement Monitoring</h1>
+    <p>"Automated face recognition attendance, live engagement analysis and intelligent classroom reporting"</p>
 
     {% if not logged_in %}
         <div class="login-hint">Login to access analytics, reports, and monitoring features</div>
@@ -220,25 +219,25 @@
 <section class="grid">
 
     <div class="card" onclick="window.location='/register_student'">
-        <div class="card-icon">➕</div>
+        <div class="card-icon"></div>
         <h3>Register Student</h3>
         <p>Add new students to the AI recognition database</p>
     </div>
 
     <div class="card {% if not logged_in %}locked{% endif %}" onclick="window.location='/class_monitor'">
-        <div class="card-icon">👨‍🏫</div>
-        <h3>Class Monitor</h3>
+        <div class="card-icon"></div>
+        <h3> Monitoring Class</h3>
         <p>Live classroom engagement tracking</p>
     </div>
 
     <div class="card {% if not logged_in %}locked{% endif %}" onclick="window.location='/analytics'">
-        <div class="card-icon">📊</div>
+        <div class="card-icon"></div>
         <h3>Analytics Dashboard</h3>
         <p>View insights and statistics</p>
     </div>
 
     <div class="card {% if not logged_in %}locked{% endif %}" onclick="window.location='/reports'">
-        <div class="card-icon">📝</div>
+        <div class="card-icon"></div>
         <h3>Reports</h3>
         <p>Generate attendance reports</p>
     </div>

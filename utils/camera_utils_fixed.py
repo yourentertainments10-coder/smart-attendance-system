@@ -12,6 +12,7 @@ from models.attendance_model import mark_attendance
 from services.face_recognition_service import recognize_student
 
 last_marked = {}
+latest_status = ""
 cooldown_active = False
 cooldown_start = 0
 last_seen_time = 0
@@ -21,20 +22,20 @@ FACE_TIMEOUT = 2
 def gen_frames():
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
-        print("❌ Camera failed to open")
+        #print(" Camera failed to open")
         return
 
-    print("✅ Camera started")
+    #print(" Camera started")
     try:
         while True:
             try:
                 success, frame = cap.read()
             except cv2.error as e:
-                print("Camera stream stopped:", e)
+                #print("Camera stream stopped:", e)
                 break
 
             if not success:
-                print("❌ Frame not captured")
+                #print(" Frame not captured")
                 time.sleep(0.1)
                 continue
             if frame is None:
@@ -46,6 +47,7 @@ def gen_frames():
 
             ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             frame_bytes = buffer.tobytes()
+            time.sleep(0.03)
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
     finally:
@@ -64,7 +66,7 @@ def register_student(student_id, name):
     os.makedirs(path, exist_ok=True)
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
-        print("❌ Camera busy - close /attendance or /class_monitor first!")
+        print(" Camera busy - close /attendance or /class_monitor first!")
         return 0
 
     saved = 0
@@ -73,11 +75,13 @@ def register_student(student_id, name):
         ret, frame = cap.read()
         print(f"Frame ret: {ret}")
         if not ret or frame is None:
-            print("❌ Frame not captured")
+            print(" Frame not captured")
             continue
 
         faces = detect_faces(frame)
         print(f"Faces detected: {len(faces)}")
+
+    
         if len(faces) > 0:
             (x, y, w, h) = faces[0]
             pad = 20
@@ -105,12 +109,12 @@ def register_student(student_id, name):
     print(f"Registration complete: {saved} images saved for {folder_name}")
     from services.face_recognition_service import load_dataset
     load_dataset()
-    print("✅ Dataset reloaded")
+    #print(" Dataset reloaded")
     return saved
 
 
 def gen_frames_attendance(app):
-    global last_marked, cooldown_active, cooldown_start, last_seen_time
+    global last_marked, cooldown_active, cooldown_start, last_seen_time,latest_status
     global status_message
     COOLDOWN_TIME = 3
     MESSAGE_GAP = 2
@@ -119,25 +123,30 @@ def gen_frames_attendance(app):
     with app.app_context():
         cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not cap.isOpened():
-            print("❌ Camera failed")
+            print(" Camera failed")
             return
 
-        print("✅ Attendance system running")
+        print(" Attendance system running")
         cooldown_active = False
         cooldown_start = 0
         last_seen_time = 0
         recent_predictions = []
         last_shown = {}
+        frame_count = 0
+        last_recog = "Unknown"
 
         try:
             while True:
                 try:
                     success, frame = cap.read()
                 except cv2.error as e:
-                    print("Attendance camera stream stopped:", e)
+                    #print("Attendance camera stream stopped:", e)
                     break
 
                 current_time = time.time()
+                frame_count += 1
+                fresh_recognition = False
+               
                 if not success:
                     time.sleep(0.1)
                     continue
@@ -154,24 +163,27 @@ def gen_frames_attendance(app):
                     w = w + 2 * pad
                     h = h + 2 * pad
                     cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-                    face_crop = frame[y:y + h, x:x + w]
-                    recog_single = recognize_student(face_crop) or "Unknown"
+                    face_crop = frame[y:y + h, x:x + w]               
+                    if frame_count % 3 == 0:
+                        fresh_recognition = True
+                        recog_single = recognize_student(face_crop) or "Unknown"
 
-                    recent_predictions.append(recog_single)
-                    if len(recent_predictions) > 5:
-                        recent_predictions.pop(0)
+                        recent_predictions.append(recog_single)
+                        if len(recent_predictions) > 5:
+                            recent_predictions.pop(0)
 
-                    recog = max(set(recent_predictions), key=recent_predictions.count)
-                    print("Recognized:", recog)
+                        last_recog = max(set(recent_predictions), key=recent_predictions.count)
+
+                    recog = last_recog
                     color = (0, 255, 0) if "Unknown" not in recog else (0, 0, 255)
                     cv2.putText(frame, f"Recognized: {recog}", (x, y - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                    if "Unknown" not in recog:
+                    if fresh_recognition and "Unknown" not in recog:
                         last_seen_time = time.time()
                         cv2.putText(frame, f"Welcome {recog}", (x, y + 50),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
-                if "Unknown" not in recog:
+                if fresh_recognition and "Unknown" not in recog:
                     now = time.time()
                     student_id = recog.split('_')[0]
                     
@@ -180,11 +192,11 @@ def gen_frames_attendance(app):
                     else:
                         last_shown[student_id] = now
    
-                    if student_id in last_marked and now - last_marked[student_id] >= MESSAGE_GAP:
+                    if student_id in last_marked and now - last_marked[student_id] < MESSAGE_GAP:
                         cv2.putText(frame, "ALREADY MARKED", (50, 80),
                                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 3)
 
-                        status_message = "ALREADY MARKED ⚠️"
+                        status_message = "ALREADY MARKED "
                         cooldown_active = True
                         cooldown_start = now
 
@@ -193,9 +205,11 @@ def gen_frames_attendance(app):
 
                         if attendance_ok:
                             last_marked[student_id] = now
-                            status_message = "ATTENDANCE MARKED ✅"
+                            status_message = "ATTENDANCE MARKED"
+                            latest_status = "ATTENDANCE MARKED"
                         else:
-                            status_message = "ALREADY MARKED ⚠️"
+                            status_message = "ALREADY MARKED "
+                            latest_status = "ATTENDANCE MARKED"                            
 
                         cooldown_active = True
                         cooldown_start = now
@@ -212,8 +226,9 @@ def gen_frames_attendance(app):
                     else:
                         cooldown_active = False       
 
-                ret, buffer = cv2.imencode('.jpg', frame)
+                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_bytes = buffer.tobytes()
+                time.sleep(0.03)
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
         except Exception as e:

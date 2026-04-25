@@ -1,8 +1,9 @@
 from flask import Blueprint, jsonify, render_template, Response
-from services.live_engagement import gen_class_frames,get_active_students
+from services.live_engagement import gen_class_frames, get_active_students
 
 class_monitor_bp = Blueprint('class_monitor', __name__, template_folder='templates')
 from routes.auth_routes import login_required
+
 @login_required
 @class_monitor_bp.route('/class_monitor')
 def class_monitor():
@@ -15,7 +16,13 @@ def class_monitor_feed():
 
 @class_monitor_bp.route('/api/active_students')
 def active_students():
-    return jsonify(get_active_students())
+    return jsonify([
+        {
+            "name": name,
+            "score": int(data.get("engagement", 0) * 100)
+        }
+        for name, data in get_active_students().items()
+    ])
 
 @class_monitor_bp.route('/test')
 def test():

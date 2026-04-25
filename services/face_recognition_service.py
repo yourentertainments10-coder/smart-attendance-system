@@ -3,14 +3,24 @@ import numpy as np
 import os
 import mediapipe as mp
 
-mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True)
+
+try:
+    import face_recognition
+    FACE_RECOGNITION_AVAILABLE = True
+except ImportError:
+    print("WARNING: face-recognition not available. Using landmark fallback.")
+    import mediapipe as mp
+    mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True)
+    FACE_RECOGNITION_AVAILABLE = False
+
 FACE_SIZE = (160, 160)
-ATTENDANCE_THRESHOLD = 0.6
-CLASS_MONITOR_THRESHOLD = 0.6
+ATTENDANCE_THRESHOLD = 0.65
+
+
+CLASS_MONITOR_THRESHOLD = 0.55
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-dataset = []   # [(name, vector)]
-
+dataset = []  # [(name, embedding_or_vector)]
 
 def preprocess_face(image):
     if image is None or image.size == 0:
@@ -18,26 +28,46 @@ def preprocess_face(image):
     return cv2.resize(image, FACE_SIZE)
 
 
-def get_face_vector(image):
-    image = preprocess_face(image)
-    if image is None:
-        return None
-    img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    results = mp_face_mesh.process(img_rgb)
+PRINT_ONCE = True
 
-    if not results.multi_face_landmarks:
+def get_face_embedding(image):
+    global PRINT_ONCE
+    preprocessed = preprocess_face(image)
+    if preprocessed is None:
         return None
 
-    landmarks = results.multi_face_landmarks[0]
-    vector = []
-    for lm in landmarks.landmark:
-        vector.extend([lm.x, lm.y, lm.z])
+    if FACE_RECOGNITION_AVAILABLE:
+        rgb = cv2.cvtColor(preprocessed, cv2.COLOR_BGR2RGB)
+        encodings = face_recognition.face_encodings(rgb)
+        emb = encodings[0] if encodings else None
 
-    return np.array(vector)
+        if emb is not None:
+            if PRINT_ONCE:
+                print(f" CNN embedding working (length={len(emb)})")
+                PRINT_ONCE = False
+
+        return emb
+    else:
+        # Fallback to landmarks
+        img_rgb = cv2.cvtColor(preprocessed, cv2.COLOR_BGR2RGB)
+        results = mp_face_mesh.process(img_rgb)
+        if not results.multi_face_landmarks:
+            return None
+        landmarks = results.multi_face_landmarks[0]
+        vector = []
+        for lm in landmarks.landmark:
+            vector.extend([lm.x, lm.y, lm.z])
+        emb = np.array(vector)
+        print(f"Landmark fallback length: {len(emb)} (dim~1400 expected)")
+        return emb
 
 
-def load_dataset():
+def load_dataset(force_reload=False):
     global dataset
+    if len(dataset) > 0 and not force_reload:
+        print(f"Dataset already loaded ({len(dataset)} entries)")
+        return
+
     dataset = []
 
     base_path = os.path.join(BASE_DIR, "..", "datasets", "student_faces")
@@ -50,29 +80,30 @@ def load_dataset():
 
     for student in os.listdir(base_path):
         student_path = os.path.join(base_path, student)
+        if not os.path.isdir(student_path):
+            continue
         for img_name in os.listdir(student_path):
             img_path = os.path.join(student_path, img_name)
             img = cv2.imread(img_path)
-            vec = get_face_vector(img)
-            if vec is not None:
-                dataset.append((student, vec))
+            if img is None:
+                continue
+            emb = get_face_embedding(img)
+            if emb is not None:
+                dataset.append((student, emb))
 
-    print("Dataset size:", len(dataset))
+    print(f"Dataset loaded: {len(dataset)} embeddings (using {'CNN' if FACE_RECOGNITION_AVAILABLE else 'landmark fallback'})")
 
 
-def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=True):
-    face_img = preprocess_face(face_img)
+def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=False):
     if face_img is None:
         if debug:
             print("?? Empty face crop")
         return "Unknown"
-    if debug:
-        print("Face shape:", face_img.shape)
 
-    input_vec = get_face_vector(face_img)
-    if input_vec is None:
+    embedding = get_face_embedding(face_img)
+    if embedding is None:
         if debug:
-            print("?? No face detected")
+            print("?? No embedding")
         return "Unknown"
 
     if len(dataset) == 0:
@@ -83,21 +114,23 @@ def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=True):
     min_dist = float("inf")
     best_match = "Unknown"
 
-    for name, vec in dataset:
-        if vec is None:
+    for name, stored_emb in dataset:
+        if stored_emb is None:
             continue
-        dist = np.linalg.norm(input_vec - vec)
+        dist = np.linalg.norm(embedding - stored_emb)
         if dist < min_dist:
             min_dist = dist
             best_match = name
 
     if debug:
-        print("Distance:", min_dist)
-    if min_dist < 0.6:
+        confidence = max(0, 1 - min_dist)
+        print(f"Best match: {best_match} | dist: {min_dist:.3f} | confidence: {confidence:.2f}")
+
+    if min_dist <= threshold:
         return best_match
-    return "Unknown"
+    else:
+        return "Unknown"
 
 
-load_dataset()
-print("Dataset loaded:", len(dataset))
+
 

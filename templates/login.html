@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Admin Login</title>
+    <title>Administrator Panel</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
 
@@ -10,11 +10,13 @@
 <div class="page-center">
     <div class="form-card">
 
-        <h1 class="title">🔐 Admin Login</h1>
+        <h1 class="title"> Administrator Panel</h1>
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="alert-success">{{ messages[0] }}</div>
+                {% for category, message in messages %}
+                <div class="alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
         {% endwith %}
 

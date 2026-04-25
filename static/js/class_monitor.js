@@ -1,11 +1,11 @@
 setInterval(() => {
-fetch('/api/active_students')
+    fetch('/api/active_students')
         .then(response => response.json())
         .then(students => {
             const list = document.getElementById('student-list');
             list.innerHTML = '';
 
-            if (!students.length) {
+            if (students.length === 0) {
                 list.innerHTML = '<div class="student">No recognized active students</div>';
                 return;
             }
@@ -13,14 +13,12 @@ fetch('/api/active_students')
             students.forEach(student => {
                 const div = document.createElement('div');
                 div.className = 'student';
-                if (student.status === 'debug') {
-                    div.style.background = '#555';
-                }
+
                 div.innerHTML = `
                     <div class="name">${student.name}</div>
-                    <div class="score">${student.engagement ? (student.engagement * 100).toFixed(1) + '%' : '0%'}</div>
-                    ${student.phone ? '<span class="phone">??</span>' : ''}
+                    <div class="score">${student.score}%</div>
                 `;
+
                 list.appendChild(div);
             });
         })

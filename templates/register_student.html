@@ -9,15 +9,21 @@
     <div class="page-center">
         <div class="form-card">
         <div class="page-title">
-            <h1>➕ Register Student</h1>
-            <p>Step 1: Enter details → Step 2: Capture face images</p>
+            <h1 style="color: black;"> Register Student</h1>
+            <p>Step 1: Enter details</p><p> Step 2: Capture face images</p><br>
         </div>
 
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="status-badge status-success">{{ messages[0] }}</div>
-            {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert {{ category }}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
         {% endwith %}
+
+
 
         <div class="card">
             <div class="form-group">
@@ -25,8 +31,8 @@
                 <input type="text" id="student_id" name="student_id" placeholder="e.g. 101" required>
             </div>
             <div class="form-group">
-                <label for="name">Full Name</label>
-                <input type="text" id="name" name="name" placeholder="e.g. Rahul Sharma" required>
+                <label for="name"><br>Full Name</label>
+                <input type="text" id="name" name="name" placeholder="e.g. Anuj Srivastava" required>
             </div>
             <div class="card-actions">
                 <button type="submit" class="btn btn-primary" form="register-form">Start Face Capture</button>
@@ -39,7 +45,7 @@
 </form>
 
         <div class="action-bar">
-            <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+            <a href="/" class="btn btn-secondary"><br>Back to Dashboard</a>
         </div>
 
         <script>

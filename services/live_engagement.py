@@ -1,4 +1,3 @@
-
 import cv2
 import numpy as np
 import time
@@ -8,10 +7,13 @@ import mediapipe as mp
 from services.face_recognition_service import recognize_student, CLASS_MONITOR_THRESHOLD
 from services.face_detection import detect_faces
 from services.engagement_detection import process_landmarks
+from services.face_tracker import SimpleFaceTracker
 from models.engagement_model import record_engagement
 from utils.date_utils import get_current_date
+import numpy as np
 
 model = YOLO("yolov8n.pt")
+FRAME_SKIP = 3
 PROCESS_EVERY_N_FRAMES = 3
 SAVE_INTERVAL = 20
 MIN_DETECTION_CONFIDENCE = 0.55
@@ -20,12 +22,18 @@ FACE_PADDING_RATIO = 0.2
 STUDENT_STALE_TIMEOUT = 3
 SMOOTHING_ALPHA = 0.3
 FACE_SIZE = (160, 160)
+FRAME_RESIZE = (480, 360)
+
 
 active_students_state = {}
-
+active_students = {}
+engagement_history = {}
+last_saved = {}
+recognized_cache = {}
 
 def calculate_engagement(face_crop, landmarks_data, phone_detected=False):
     score = 0.0
+
     if face_crop is not None and face_crop.size > 0:
         score += 0.3
     if landmarks_data:
@@ -89,6 +97,7 @@ def preprocess_face(face_crop):
 
 
 def process_class_frame(frame):
+    frame = cv2.resize(frame, FRAME_RESIZE)
     results = model(frame, verbose=False)
     persons = []
     phone_boxes = []
@@ -135,8 +144,7 @@ def process_class_frame(frame):
             persons.append({
                 "face_crop": face_crop,
                 "bbox": (x1, y1, x2, y2),
-                "face_bbox": (x1 + padded_face_box[0], y1 + padded_face_box[1], x1 + padded_face_box[2], y1 + padded_face_box[3]),
-                "phone_detected": False,
+                "face_bbox": (x1 + padded_face_box[0], y1 + padded_face_box[1], x1 + padded_face_box[2], y1 + padded_face_box[3])
             })
 
     _match_phones_to_people(persons, phone_boxes)
@@ -150,18 +158,27 @@ def get_active_students():
 
 def gen_class_frames():
     global active_students_state
+    global active_students
+    global engagement_history
+    global last_saved
+    global recognized_cache
 
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FPS, 15)
+
     if not cap.isOpened():
         print("❌ Class monitor camera failed")
         return
 
     print("✅ Class engagement monitor started")
 
+    tracker = SimpleFaceTracker()
     frame_count = 0
-    active_students = {}
+    active_tracks = {}  # track_id: {'name':str, 'score':float, 'phone':bool, 'history':list}
     last_saved = {}
-    engagement_history = {}
+    recognized_cache = {}
+
+    FRAME_SKIP = 3
 
     try:
         while True:
@@ -170,6 +187,10 @@ def gen_class_frames():
                 continue
 
             frame_count += 1
+
+            if frame_count % FRAME_SKIP != 0:
+                continue
+
             now = time.time()
 
             if frame_count % PROCESS_EVERY_N_FRAMES != 0:
@@ -183,34 +204,38 @@ def gen_class_frames():
                 continue
 
             persons = process_class_frame(frame)
-            unknown_count = 0
+            tracked_persons = tracker.update(persons)
 
-            for person in persons:
-                face_crop = person["face_crop"]
+            for tracked in tracked_persons:
+                track_id = tracked['track_id']
+                face_crop = tracked['face_crop']
+
+                phone_detected = tracked.get('phone_detected', False)
+
                 if face_crop is None or face_crop.size == 0:
                     continue
 
-                face_crop = preprocess_face(face_crop)
-                if face_crop is None:
+                face_rgb = preprocess_face(face_crop)
+                if face_rgb is None:
                     continue
 
-                name = recognize_student(face_crop, threshold=CLASS_MONITOR_THRESHOLD)
-                if name in (None, "Unknown"):
-                    unknown_count += 1
-                    continue
+                if track_id not in recognized_cache:
+                    name = recognize_student(face_rgb, threshold=CLASS_MONITOR_THRESHOLD)
+                    recognized_cache[track_id] = name
+                name = recognized_cache.get(track_id, "Unknown")
 
-                x1, y1, x2, y2 = person["bbox"]
-                color = (0, 0, 255) if person["phone_detected"] else (0, 255, 0)
+                x1, y1, x2, y2 = tracked['bbox']
+                color = (0, 0, 255) if phone_detected else (0, 255, 0)
 
                 landmarks_data = None
                 if face_crop is not None and face_crop.size > 0:
                     landmarks_data = process_landmarks(face_crop)
 
-                raw_score = calculate_engagement(face_crop, landmarks_data, person["phone_detected"])
+                raw_score = calculate_engagement(face_crop, landmarks_data, phone_detected)
                 previous_score = active_students.get(name, {}).get("score", raw_score)
                 score = (1 - SMOOTHING_ALPHA) * previous_score + SMOOTHING_ALPHA * raw_score
 
-                active_students[name] = {"score": score,"phone": person["phone_detected"],"last_seen": now,}
+                active_students[name] = {"score": score, "phone": phone_detected, "last_seen": now}
                 
 
                 if name not in engagement_history:
@@ -228,7 +253,7 @@ def gen_class_frames():
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 label = f"{name}: {int(score * 100)}%"
-                if person["phone_detected"]:
+                if phone_detected:
                     label += " 📱"
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
@@ -240,7 +265,11 @@ def gen_class_frames():
             current_time = time.time()
             for n, d in active_students.items():
                 active_students_state[n] = {"engagement": round(d["score"], 1),"last_seen": d["last_seen"]}
-                # Cleanup stale\n            active_students_state = {k: v for k, v in active_students_state.items() if current_time - v["last_seen"] < 3}
+                # Cleanup stale
+                active_students_state = {
+                    k: v for k, v in active_students_state.items()
+                    if current_time - v["last_seen"] < 3
+                    }
 
             ret, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
@@ -249,4 +278,3 @@ def gen_class_frames():
     finally:
         cap.release()
         cv2.destroyAllWindows()
-
