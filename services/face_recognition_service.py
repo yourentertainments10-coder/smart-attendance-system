@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 import mediapipe as mp
-
+from collections import defaultdict
 
 try:
     import face_recognition
@@ -17,7 +17,7 @@ FACE_SIZE = (160, 160)
 ATTENDANCE_THRESHOLD = 0.65
 
 
-CLASS_MONITOR_THRESHOLD = 0.55
+CLASS_MONITOR_THRESHOLD = 0.60
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dataset = []  # [(name, embedding_or_vector)]
@@ -111,26 +111,44 @@ def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=False):
             print("? Dataset empty")
         return "Unknown"
 
-    min_dist = float("inf")
-    best_match = "Unknown"
+    # Store all distances grouped by student
+    student_distances = defaultdict(list)
 
     for name, stored_emb in dataset:
         if stored_emb is None:
             continue
+
         dist = np.linalg.norm(embedding - stored_emb)
-        if dist < min_dist:
-            min_dist = dist
-            best_match = name
+        student_distances[name].append(dist)
 
-    if debug:
-        confidence = max(0, 1 - min_dist)
-        print(f"Best match: {best_match} | dist: {min_dist:.3f} | confidence: {confidence:.2f}")
-
-    if min_dist <= threshold:
-        return best_match
-    else:
+    if len(student_distances) == 0:
         return "Unknown"
 
+    # Compute average of best few distances per student
+    best_student = "Unknown"
+    best_score = float("inf")
+    second_best = float("inf")
 
+    for student, dists in student_distances.items():
+        dists.sort()
 
+        top_matches = dists[:5] if len(dists) >= 5 else dists
+        avg_dist = np.mean(top_matches)
 
+        if avg_dist < best_score:
+            second_best = best_score
+            best_score = avg_dist
+            best_student = student
+        elif avg_dist < second_best:
+            second_best = avg_dist
+
+    confidence_gap = second_best - best_score
+
+    if debug:
+        print(f"Best: {best_student} | score: {best_score:.3f} | second: {second_best:.3f} | gap: {confidence_gap:.3f}")
+
+    # STRICT acceptance conditions
+    if best_score <= threshold and confidence_gap > 0.03:
+        return best_student
+    else:
+        return "Unknown"

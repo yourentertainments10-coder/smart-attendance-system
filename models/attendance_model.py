@@ -25,7 +25,7 @@ def mark_attendance(student_id, recognized_name):
     ''', (student_id, date)).fetchone()
 
     if existing:
-        print(f"⚠️ Attendance already marked for {recognized_name}")
+        #print(f"⚠️ Attendance already marked for {recognized_name}")
         return False
 
     

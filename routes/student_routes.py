@@ -16,7 +16,7 @@ def register_student_route():
         name = request.form.get('name', '').strip()
 
         if not student_id or not name:
-            flash('❌ Enter valid Student ID and Name!')
+            flash(' Enter valid Student ID and Name!')
             return redirect(url_for('student.register_student_route'))
 
         db = get_db()
@@ -28,7 +28,7 @@ def register_student_route():
         ).fetchone()
 
         if existing:
-            flash("❌ Student ID already exists! Use a unique ID.")
+            flash(" Student ID already exists! Use a unique ID.")
             return redirect(url_for('student.register_student_route'))
 
         folder_name = f"{student_id}_{name.replace(' ', '_')}"
@@ -46,9 +46,9 @@ def register_student_route():
 
             # Reload dataset
             from services.face_recognition_service import load_dataset
-            load_dataset()
+            load_dataset(force_reload=True)
 
-            flash("✅ Student registered successfully!", "success")
+            flash(" Student registered successfully!", "success")
 
         except Exception as e:
             flash(f'Error: {str(e)}')

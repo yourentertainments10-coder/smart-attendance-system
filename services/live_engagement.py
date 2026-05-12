@@ -14,7 +14,7 @@ import numpy as np
 
 model = YOLO("yolov8n.pt")
 FRAME_SKIP = 3
-PROCESS_EVERY_N_FRAMES = 3
+PROCESS_EVERY_N_FRAMES = 2
 SAVE_INTERVAL = 20
 MIN_DETECTION_CONFIDENCE = 0.55
 MIN_FACE_SIZE = 80
@@ -88,12 +88,7 @@ def _padded_face_crop(person_crop, face_box):
     return crop, (x1, y1, x2, y2)
 
 
-def preprocess_face(face_crop):
-    if face_crop is None or face_crop.size == 0:
-        return None
-    face_crop = cv2.resize(face_crop, FACE_SIZE)
-    face_crop = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
-    return face_crop
+
 
 
 def process_class_frame(frame):
@@ -215,13 +210,21 @@ def gen_class_frames():
                 if face_crop is None or face_crop.size == 0:
                     continue
 
-                face_rgb = preprocess_face(face_crop)
-                if face_rgb is None:
-                    continue
+                face_rgb = face_crop
 
-                if track_id not in recognized_cache:
-                    name = recognize_student(face_rgb, threshold=CLASS_MONITOR_THRESHOLD)
-                    recognized_cache[track_id] = name
+
+                cached_name = recognized_cache.get(track_id)
+
+                if cached_name is None or cached_name == "Unknown":
+                    detected_name = recognize_student(
+                        face_rgb,
+                        threshold=CLASS_MONITOR_THRESHOLD
+                    )
+
+    # Only overwrite cache if valid recognition
+                    if detected_name != "Unknown":
+                        recognized_cache[track_id] = detected_name
+
                 name = recognized_cache.get(track_id, "Unknown")
 
                 x1, y1, x2, y2 = tracked['bbox']
@@ -244,10 +247,11 @@ def gen_class_frames():
 
                 if name not in last_saved or now - last_saved[name] > SAVE_INTERVAL:
                     avg_engagement = sum(engagement_history[name]) / len(engagement_history[name])
-                    try:
-                        record_engagement(name.split('_')[0], avg_engagement)
-                    except Exception as e:
-                        print("db write skipped",e)
+                    if name != "Unknown":
+                        try:
+                            record_engagement(name.split('_')[0], avg_engagement)
+                        except Exception as e:
+                            print("db write skipped",e)
                     last_saved[name] = now
                     engagement_history[name] = engagement_history[name][-10:]
 

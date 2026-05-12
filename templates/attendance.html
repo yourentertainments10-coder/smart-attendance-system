@@ -25,39 +25,73 @@
         </div>
 
         <audio id="successSound" src="{{ url_for('static', filename='sounds/success.mp3') }}" preload="auto"></audio>
-        <script>
-    let lastMessage = "";
+<script>
+let audioUnlocked = false;
+let previousMessage = "";
 
-    function triggerBeep(msg) {
-        if (msg && msg !== lastMessage) {
-            document.getElementById("successSound").play().catch(()=>{});
-            lastMessage = msg;
+const sound = document.getElementById("successSound");
+
+// Unlock audio once
+document.body.addEventListener("click", async () => {
+    if (!audioUnlocked) {
+        try {
+            await sound.play();
+            sound.pause();
+            sound.currentTime = 0;
+            audioUnlocked = true;
+            console.log("Audio unlocked");
+        } catch (err) {
+            console.log(err);
         }
     }
+}, { once: true });
 
-    function showStatus(message, type="success") {
-        triggerBeep(message);
+function playBeep() {
+    if (!audioUnlocked) return;
 
-        const box = document.getElementById("status-box");
-        box.textContent = message;
-        box.className = `status-badge status-${type}`;
-        box.style.display = "inline-block";
+    sound.currentTime = 0;
 
-        setTimeout(() => {
-            box.style.display = "none";
-        }, 3000);
+    sound.play()
+        .then(() => console.log("Beep played"))
+        .catch(err => console.log("Play error:", err));
+}
+
+function showStatus(message, type="success") {
+
+    if (message !== previousMessage) {
+        playBeep();
+        previousMessage = message;
     }
 
-    setInterval(() => {
-        fetch('/attendance_status')
-            .then(res => res.json())
-            .then(data => {
-                if (data.message && data.message !== "" && data.message !== lastMessage) {
-                    let type = data.message.includes("ALREADY") ? "error" : "success";
-                    showStatus(data.message, type);
-                }
-            });
-    }, 1000);
+    const box = document.getElementById("status-box");
+
+    box.textContent = message;
+    box.className = `status-badge status-${type}`;
+    box.style.display = "inline-block";
+
+    setTimeout(() => {
+        box.style.display = "none";
+    }, 3000);
+}
+
+setInterval(async () => {
+    try {
+        const res = await fetch('/attendance_status');
+        const data = await res.json();
+
+        if (data.message && data.message.trim() !== "") {
+
+            let type = data.message.includes("ALREADY")
+                ? "error"
+                : "success";
+
+            showStatus(data.message, type);
+        }
+
+    } catch (err) {
+        console.log(err);
+    }
+}, 1000);
 </script>
 </div>
 </body>
