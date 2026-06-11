@@ -167,6 +167,10 @@ http://127.0.0.1:5000
 
 ![Engagement](screenshots/engagement.png)
 
+## Live Demo
+
+[View Project](https://yourusername.github.io/project-name/smart-attendance-system)
+
 ## Future Improvements
 
 * Email notifications
