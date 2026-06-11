@@ -1,38 +1,59 @@
-# AI-Powered Smart Attendance and Engagement Monitoring System
+# AI Smart Classroom System (Flask + MySQL + YOLOv8)
 
-## Overview
-
-Smart Attendance System is an AI-powered classroom management platform that automates attendance tracking and monitors student engagement using computer vision techniques. The system combines face recognition, real-time student tracking, and behavioral analysis to reduce manual effort, improve attendance accuracy, and provide meaningful insights into classroom participation. A web-based dashboard allows administrators and teachers to view attendance records, engagement scores, and analytical reports in an organized manner.
+An AI-powered classroom management system that automates attendance tracking and monitors student engagement using computer vision techniques.
 
 ## Features
 
-* Automated Attendance Tracking
-* Face Detection and Recognition
-* Secure User Authentication
-* Student Registration and Management
-* Real-Time Attendance Recording
-* Attendance Reports and Analytics
-* Admin Dashboard
-* Database Integration
-* Modular Flask Architecture
+* **Automatic Face Recognition Attendance**
 
-## Tech Stack
+  * Detects and identifies registered students
+  * Marks attendance automatically
 
-| Technology | Purpose               |
-| ---------- | --------------------- |
-| Python     | Backend Logic         |
-| Flask      | Web Framework         |
-| OpenCV     | Computer Vision       |
-| YOLOv8     | Object/Face Detection |
-| MySQL      | Database Management   |
-| HTML       | Frontend Structure    |
-| CSS        | Styling               |
-| JavaScript | Interactivity         |
+* **Student Engagement Monitoring**
+
+  * Tracks student behavior during lectures
+  * Detects:
+
+    * Face visibility
+    * Eye movement
+    * Head position
+    * Mobile phone usage
+
+* **Real-Time Student Tracking**
+
+  * Monitors multiple students simultaneously
+  * Generates engagement scores
+
+* **Web Dashboard**
+
+  * Attendance records
+  * Student engagement reports
+  * Analytics and summaries
+
+* **Database Integration**
+
+  * Stores attendance records
+  * Stores engagement metrics
+  * Maintains student information
+
+## Technology Stack
+
+* Python
+* Flask
+* OpenCV
+* YOLOv8 (Ultralytics)
+* MySQL
+* HTML
+* CSS
+* JavaScript
 
 ## Project Structure
 
 ```text
-smart-attendance-system/
+.
+├── app.py
+├── config.py
+├── yolov8n.pt
 │
 ├── database/
 ├── docs/
@@ -44,69 +65,120 @@ smart-attendance-system/
 ├── tests/
 ├── utils/
 │
-├── app.py
-├── config.py
-├── requirements.txt
-├── yolov8n.pt
 └── README.md
 ```
 
-## System Workflow
+## How It Works
 
-1. Students enter the classroom and are detected through the camera feed.
-2. Face recognition identifies registered students and marks attendance automatically.
-3. During the lecture, the system continuously tracks students in real time.
-4. Computer vision models analyze engagement indicators such as:
+### 1) Student Recognition
 
-   * Face visibility
-   * Eye movement
-   * Head position
-   * Mobile phone usage
-5. An engagement score is calculated for each student based on observed behavior.
-6. Attendance and engagement data are stored in the database.
-7. The web dashboard displays attendance records, engagement statistics, and analytical reports for teachers and administrators.
+* Live classroom video is captured through a camera.
+* YOLOv8 detects students in the frame.
+* Face recognition identifies registered students.
+* Attendance is marked automatically.
 
+### 2) Engagement Analysis
+
+The system continuously analyzes student behavior using computer vision techniques:
+
+* Face visibility
+* Eye movement
+* Head orientation
+* Mobile phone usage
+
+Based on these indicators, an engagement score is calculated for each student.
+
+### 3) Attendance Management
+
+* Attendance records are generated automatically.
+* Data is stored in the database.
+* Historical attendance can be viewed through the dashboard.
+
+### 4) Dashboard & Analytics
+
+The web dashboard provides:
+
+* Attendance summaries
+* Student engagement scores
+* Analytical reports
+* Classroom performance insights
+
+## AI Models
+
+### YOLOv8
+
+The system uses YOLOv8 for real-time object detection and student tracking.
+
+### Face Recognition
+
+Face recognition is used to identify registered students and automate attendance marking.
+
+## Database
+
+The database stores:
+
+* Student information
+* Attendance records
+* Engagement scores
+* System logs
+
+## Setup & Run
+
+### 1) Create Virtual Environment
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+### 2) Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3) Start the Application
+
+```bash
+python app.py
+```
+
+### 4) Open in Browser
+
+```text
+http://127.0.0.1:5000
+```
 
 ## Screenshots
 
 ### Login Page
 
-![Login Page](screenshots/login.png)
+![Login](screenshots/login.png)
 
 ### Dashboard
 
 ![Dashboard](screenshots/dashboard.png)
 
-### Attendance Management
+### Attendance Monitoring
 
 ![Attendance](screenshots/attendance.png)
 
-### Face Detection
+### Engagement Analysis
 
-![Detection](screenshots/detection.png)
-
-## Installation
-
-```bash
-git clone https://github.com/yourentertainments10-coder/smart-attendance-system.git
-
-cd smart-attendance-system
-
-pip install -r requirements.txt
-
-python app.py
-```
+![Engagement](screenshots/engagement.png)
 
 ## Future Improvements
 
-* Email Notifications
-* Attendance Analytics Dashboard
-* Cloud Deployment
-* Mobile Application Integration
-* Multi-Camera Support
+* Email notifications
+* Mobile application support
+* Cloud deployment
+* Advanced engagement analytics
+* Multi-camera classroom support
 
 ## Author
 
-**Anuj Srivastava**
+Anuj Srivastava
 
-Aspiring Full-Stack Developer | Python | Flask | React | Data Science
+Aspiring Full-Stack Developer | Python | Flask | Computer Vision | Data Science
+
+
