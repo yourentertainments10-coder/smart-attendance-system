@@ -61,7 +61,10 @@ shows every student with ≥ 15 images and 100% of stored images produce an enco
 
 ---
 
-## Phase 2 — Recognition pipeline (fixes accuracy)
+## Phase 2 — Recognition pipeline (fixes accuracy) — ✅ IMPLEMENTED
+(Remaining manual step: run the live test matrix below with the class monitor,
+watching the Best/second/gap console lines. `DEBUG_RECOGNITION` in
+services/live_engagement.py is True for this — set it False when done.)
 
 ### 2.1 Stop cropping faces from the shrunken frame
 File: `services/live_engagement.py` → `process_class_frame()`

@@ -14,7 +14,6 @@ except ImportError:
     mp_face_mesh = mp.solutions.face_mesh.FaceMesh(static_image_mode=True)
     FACE_RECOGNITION_AVAILABLE = False
 
-FACE_SIZE = (160, 160)
 ATTENDANCE_THRESHOLD = 0.65
 
 
@@ -24,6 +23,10 @@ CLASS_MONITOR_THRESHOLD = 0.60
 # considered properly registered (see register_student / check_gallery).
 MIN_GALLERY_IMAGES = 15
 CACHE_FILENAME = "embeddings_cache.pkl"
+# Bump whenever preprocessing/embedding changes so cached embeddings rebuild.
+PIPELINE_VERSION = 2
+# Crops with a shorter side below this get a 2x upscale before encoding.
+MIN_EMBED_SIZE = 80
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dataset = []  # [(name, embedding_or_vector)]
@@ -31,7 +34,13 @@ dataset = []  # [(name, embedding_or_vector)]
 def preprocess_face(image):
     if image is None or image.size == 0:
         return None
-    return cv2.resize(image, FACE_SIZE)
+    # Native resolution, aspect preserved — the old square 160x160 resize
+    # distorted faces and threw away detail. Small (distant) faces get a
+    # cheap 2x upscale, which measurably helps dlib's encoder.
+    h, w = image.shape[:2]
+    if min(h, w) < MIN_EMBED_SIZE:
+        image = cv2.resize(image, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+    return image
 
 
 PRINT_ONCE = True
@@ -85,12 +94,13 @@ def load_folder_embeddings(student_path):
     Failed encodings are cached as None so they aren't retried every load.
     """
     cache_path = os.path.join(student_path, CACHE_FILENAME)
-    cached = {"mode": EMBEDDING_MODE, "files": {}}
+    cached = {"mode": EMBEDDING_MODE, "version": PIPELINE_VERSION, "files": {}}
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "rb") as f:
                 loaded = pickle.load(f)
-            if loaded.get("mode") == EMBEDDING_MODE:
+            if (loaded.get("mode") == EMBEDDING_MODE
+                    and loaded.get("version") == PIPELINE_VERSION):
                 cached = loaded
         except Exception as e:
             print(f"Embedding cache unreadable, rebuilding ({e})")

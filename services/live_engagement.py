@@ -18,12 +18,19 @@ FRAME_SKIP = 3
 PROCESS_EVERY_N_FRAMES = 1
 SAVE_INTERVAL = 20
 MIN_DETECTION_CONFIDENCE = 0.55
-MIN_FACE_SIZE = 80
+# Minimum face width/height in ORIGINAL frame pixels. Tuned for a 640x480
+# webcam; lower it if back-of-room faces are being skipped, raise it if tiny
+# unreliable crops get through.
+MIN_FACE_SIZE = 60
 FACE_PADDING_RATIO = 0.2
 STUDENT_STALE_TIMEOUT = 3
 SMOOTHING_ALPHA = 0.3
-FACE_SIZE = (160, 160)
-FRAME_RESIZE = (416, 320)
+# YOLO runs on this small size for speed; face crops always come from the
+# full-resolution frame (boxes are mapped back).
+DETECTION_SIZE = (416, 320)
+# Print best/second/gap distances for every recognition attempt.
+# Leave True while verifying Phase 2 accuracy, then set False.
+DEBUG_RECOGNITION = True
 
 
 active_students_state = {}
@@ -94,10 +101,19 @@ def _padded_face_crop(person_crop, face_box):
 
 
 def process_class_frame(frame):
-    frame = cv2.resize(frame, FRAME_RESIZE)
-    results = model(frame, verbose=False,imgsz=320)
+    """
+    Detect persons/phones on a downscaled copy (speed), but take every face
+    crop from the ORIGINAL full-resolution frame. All returned boxes are in
+    original-frame coordinates.
+    """
+    small = cv2.resize(frame, DETECTION_SIZE)
+    scale_x = frame.shape[1] / DETECTION_SIZE[0]
+    scale_y = frame.shape[0] / DETECTION_SIZE[1]
+
+    results = model(small, verbose=False, imgsz=320)
     persons = []
     phone_boxes = []
+    yolo_person_count = 0
 
     for r in results:
         boxes = r.boxes
@@ -107,14 +123,15 @@ def process_class_frame(frame):
         for box in boxes:
             cls = int(box.cls[0])
             conf = float(box.conf[0])
-            if conf < 0.55:
+            if conf < MIN_DETECTION_CONFIDENCE:
                 continue
 
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            x1 = max(0, x1)
-            y1 = max(0, y1)
-            x2 = min(frame.shape[1], x2)
-            y2 = min(frame.shape[0], y2)
+            sx1, sy1, sx2, sy2 = map(int, box.xyxy[0])
+            # Map back to original-frame coordinates
+            x1 = max(0, int(sx1 * scale_x))
+            y1 = max(0, int(sy1 * scale_y))
+            x2 = min(frame.shape[1], int(sx2 * scale_x))
+            y2 = min(frame.shape[0], int(sy2 * scale_y))
 
             if cls == 67:  # cellphone
                 phone_boxes.append((x1, y1, x2, y2))
@@ -122,6 +139,7 @@ def process_class_frame(frame):
             if cls != 0:  # person
                 continue
 
+            yolo_person_count += 1
             person_crop = frame[y1:y2, x1:x2]
             if person_crop.size == 0:
                 continue
@@ -131,7 +149,7 @@ def process_class_frame(frame):
                 continue
 
             fx, fy, fw, fh = max(local_faces, key=lambda f: f[2]*f[3])
-            if fw < 80 or fh < 80:
+            if fw < MIN_FACE_SIZE or fh < MIN_FACE_SIZE:
                 continue
 
             face_crop, padded_face_box = _padded_face_crop(person_crop, (fx, fy, fw, fh))
@@ -142,6 +160,22 @@ def process_class_frame(frame):
                 "face_crop": face_crop,
                 "bbox": (x1, y1, x2, y2),
                 "face_bbox": (x1 + padded_face_box[0], y1 + padded_face_box[1], x1 + padded_face_box[2], y1 + padded_face_box[3])
+            })
+
+    # Close-up fallback: a face filling the webcam often has no visible torso,
+    # so YOLO finds no "person" and the pipeline would go dark. Detect faces
+    # directly on the full frame instead.
+    if yolo_person_count == 0:
+        for (fx, fy, fw, fh) in detect_faces(frame):
+            if fw < MIN_FACE_SIZE or fh < MIN_FACE_SIZE:
+                continue
+            face_crop, padded_face_box = _padded_face_crop(frame, (fx, fy, fw, fh))
+            if face_crop.size == 0:
+                continue
+            persons.append({
+                "face_crop": face_crop,
+                "bbox": (fx, fy, fx + fw, fy + fh),
+                "face_bbox": padded_face_box
             })
 
     _match_phones_to_people(persons, phone_boxes)
@@ -171,7 +205,9 @@ def gen_class_frames():
 
     print(" Class engagement monitor started")
 
-    tracker = SimpleFaceTracker()
+    # Centroids are now in original-frame pixels (was 416x320), so the
+    # matching radius scales up accordingly. Tracker tuning proper is Phase 3.
+    tracker = SimpleFaceTracker(max_distance=120)
     frame_count = 0
     active_tracks = {}  # track_id: {'name':str, 'score':float, 'phone':bool, 'history':list}
     last_saved = {}
@@ -229,7 +265,8 @@ def gen_class_frames():
 
                     detected_name = recognize_student(
                         face_rgb,
-                        threshold=CLASS_MONITOR_THRESHOLD
+                        threshold=CLASS_MONITOR_THRESHOLD,
+                        debug=DEBUG_RECOGNITION
                     )
 
                     # Only overwrite cache if valid recognition
