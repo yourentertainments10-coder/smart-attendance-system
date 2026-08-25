@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+import pickle
 import mediapipe as mp
 from collections import defaultdict
 
@@ -18,6 +19,11 @@ ATTENDANCE_THRESHOLD = 0.65
 
 
 CLASS_MONITOR_THRESHOLD = 0.60
+
+# Gallery policy: a student needs at least this many valid images to be
+# considered properly registered (see register_student / check_gallery).
+MIN_GALLERY_IMAGES = 15
+CACHE_FILENAME = "embeddings_cache.pkl"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dataset = []  # [(name, embedding_or_vector)]
@@ -38,7 +44,13 @@ def get_face_embedding(image):
 
     if FACE_RECOGNITION_AVAILABLE:
         rgb = cv2.cvtColor(preprocessed, cv2.COLOR_BGR2RGB)
-        encodings = face_recognition.face_encodings(rgb)
+        h, w = rgb.shape[:2]
+        # The crop IS the face, so tell dlib where it is instead of letting it
+        # re-run HOG detection on a tight crop (which frequently finds nothing
+        # and was the main source of "no embedding" -> Unknown).
+        encodings = face_recognition.face_encodings(
+            rgb, known_face_locations=[(0, w, h, 0)]
+        )
         emb = encodings[0] if encodings else None
 
         if emb is not None:
@@ -62,6 +74,60 @@ def get_face_embedding(image):
         return emb
 
 
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+EMBEDDING_MODE = "cnn" if FACE_RECOGNITION_AVAILABLE else "landmark"
+
+
+def load_folder_embeddings(student_path):
+    """
+    Return {filename: embedding_or_None} for one student folder, computing
+    embeddings only for images that are new or changed since the last run.
+    Failed encodings are cached as None so they aren't retried every load.
+    """
+    cache_path = os.path.join(student_path, CACHE_FILENAME)
+    cached = {"mode": EMBEDDING_MODE, "files": {}}
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "rb") as f:
+                loaded = pickle.load(f)
+            if loaded.get("mode") == EMBEDDING_MODE:
+                cached = loaded
+        except Exception as e:
+            print(f"Embedding cache unreadable, rebuilding ({e})")
+
+    images = [f for f in os.listdir(student_path)
+              if f.lower().endswith(IMAGE_EXTENSIONS)]
+    result = {}
+    changed = False
+
+    for img_name in images:
+        img_path = os.path.join(student_path, img_name)
+        mtime = os.path.getmtime(img_path)
+        entry = cached["files"].get(img_name)
+        if entry is not None and entry["mtime"] == mtime:
+            result[img_name] = entry["embedding"]
+            continue
+        img = cv2.imread(img_path)
+        emb = get_face_embedding(img) if img is not None else None
+        cached["files"][img_name] = {"mtime": mtime, "embedding": emb}
+        result[img_name] = emb
+        changed = True
+
+    stale = set(cached["files"]) - set(images)
+    for img_name in stale:
+        del cached["files"][img_name]
+        changed = True
+
+    if changed:
+        try:
+            with open(cache_path, "wb") as f:
+                pickle.dump(cached, f)
+        except Exception as e:
+            print(f"Embedding cache write failed for {student_path}: {e}")
+
+    return result
+
+
 def load_dataset(force_reload=False):
     global dataset
     if len(dataset) > 0 and not force_reload:
@@ -82,12 +148,7 @@ def load_dataset(force_reload=False):
         student_path = os.path.join(base_path, student)
         if not os.path.isdir(student_path):
             continue
-        for img_name in os.listdir(student_path):
-            img_path = os.path.join(student_path, img_name)
-            img = cv2.imread(img_path)
-            if img is None:
-                continue
-            emb = get_face_embedding(img)
+        for emb in load_folder_embeddings(student_path).values():
             if emb is not None:
                 dataset.append((student, emb))
 

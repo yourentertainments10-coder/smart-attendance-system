@@ -34,6 +34,12 @@
                 <label for="name"><br>Full Name</label>
                 <input type="text" id="name" name="name" placeholder="e.g. Anuj Srivastava" required>
             </div>
+            <div class="form-group">
+                <label for="recapture">
+                    <input type="checkbox" id="recapture">
+                    Re-capture photos for an existing student
+                </label>
+            </div>
             <div class="card-actions">
                 <button type="submit" class="btn btn-primary" form="register-form">Start Face Capture</button>
             </div>
@@ -42,6 +48,7 @@
 <form id="register-form" method="POST">
     <input type="text" name="student_id" id="student_id_input" style="display: none;">
     <input type="text" name="name" id="name_input" style="display: none;">
+    <input type="text" name="recapture" id="recapture_input" style="display: none;">
 </form>
 
         <div class="action-bar">
@@ -60,6 +67,8 @@
 
             document.getElementById('student_id_input').value = id;
             document.getElementById('name_input').value = name;
+            document.getElementById('recapture_input').value =
+                document.getElementById('recapture').checked ? '1' : '0';
 
             document.getElementById('register-form').submit();
         });

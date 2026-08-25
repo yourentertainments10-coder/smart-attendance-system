@@ -26,4 +26,5 @@ setInterval(() => {
             const list = document.getElementById('student-list');
             list.innerHTML = '<div class="student">Monitor data unavailable</div>';
         });
-}, 2000);
+}, 7000); 
+//10000

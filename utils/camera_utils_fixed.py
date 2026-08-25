@@ -7,6 +7,7 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 from services.engagement_detection import process_landmarks
 import os
+import re
 import time
 from models.attendance_model import mark_attendance
 from services.face_recognition_service import recognize_student
@@ -55,61 +56,125 @@ def gen_frames():
         cv2.destroyAllWindows()
 
 
-def register_student(student_id, name):
+TARGET_IMAGES = 20
+CAPTURE_INTERVAL = 0.5  # seconds between saved images
+# Guided capture: pose variation is what makes recognition survive
+# angle/lighting/distance changes later.
+CAPTURE_STAGES = [
+    ("Look STRAIGHT at the camera", 8),
+    ("Turn head slightly LEFT", 3),
+    ("Turn head slightly RIGHT", 3),
+    ("Tilt chin UP, then DOWN", 3),
+    ("Lean BACK from the camera", 3),
+]
+
+
+def _existing_gallery_images(path):
+    if not os.path.exists(path):
+        return []
+    return [f for f in os.listdir(path)
+            if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+
+
+def register_student(student_id, name, allow_append=False):
+    from services.face_recognition_service import (
+        get_face_embedding, load_dataset, MIN_GALLERY_IMAGES
+    )
+
     folder_name = f"{student_id}_{name.replace(' ', '_')}"
     base_dir = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(base_dir, "..", "datasets", "student_faces", folder_name)
-    if os.path.exists(path):
-        print(f"Folder already exists: {path}. Skipping duplicate capture.")
+
+    existing_images = _existing_gallery_images(path)
+    if existing_images and len(existing_images) >= MIN_GALLERY_IMAGES and not allow_append:
+        print(f"Folder already has {len(existing_images)} images: {path}. Skipping duplicate capture.")
         return 0
 
     os.makedirs(path, exist_ok=True)
+
+    # Continue numbering after the highest existing index so append never overwrites
+    next_index = 0
+    for f in existing_images:
+        m = re.match(r"img(\d+)\.", f)
+        if m:
+            next_index = max(next_index, int(m.group(1)) + 1)
+
+    to_capture = TARGET_IMAGES - len(existing_images)
+    if to_capture <= 0:
+        print(f"{folder_name} already has {len(existing_images)} images, nothing to capture.")
+        return 0
+
+    # One prompt per image; when appending, skip the straight-on prompts the
+    # student most likely already has.
+    prompts = []
+    for text, count in CAPTURE_STAGES:
+        prompts.extend([text] * count)
+    prompts = prompts[TARGET_IMAGES - to_capture:]
+
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
         print(" Camera busy - close /attendance or /class_monitor first!")
         return 0
 
     saved = 0
-    print(f"Capturing 20 face images for {folder_name}. Press 'q' to quit early.")
-    while saved < 20:
+    rejected = 0
+    last_capture_time = 0.0
+    print(f"Capturing {to_capture} face images for {folder_name}. Press 'q' to quit early.")
+
+    while saved < to_capture:
         ret, frame = cap.read()
-        print(f"Frame ret: {ret}")
         if not ret or frame is None:
-            print(" Frame not captured")
+            time.sleep(0.05)
             continue
 
+        display = frame.copy()
+        now = time.time()
         faces = detect_faces(frame)
-        print(f"Faces detected: {len(faces)}")
 
-    
         if len(faces) > 0:
-            (x, y, w, h) = faces[0]
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
             pad = 20
-            x = max(0, x - pad)
-            y = max(0, y - pad)
-            w = w + 2 * pad
-            h = h + 2 * pad
-            if w > 50 and h > 50:
-                face_crop = frame[y:y + h, x:x + w]
-                face_crop = cv2.resize(face_crop, (160, 160))
-                filename = f"{path}/img{saved}.jpg"
-                cv2.imwrite(filename, face_crop)
-                saved += 1
-                print(f"Saved {saved}/20: {filename}")
+            x1 = max(0, x - pad)
+            y1 = max(0, y - pad)
+            x2 = min(frame.shape[1], x + w + pad)
+            y2 = min(frame.shape[0], y + h + pad)
+            cv2.rectangle(display, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
-        cv2.putText(frame, f'Saved: {saved}/20 Press q to quit', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.imshow('Register Student - Show Face', frame)
+            if (x2 - x1) > 50 and (y2 - y1) > 50 and now - last_capture_time >= CAPTURE_INTERVAL:
+                # Full-resolution crop, aspect preserved — no 160x160 squish.
+                face_crop = frame[y1:y2, x1:x2]
+                # Only keep images that actually produce an embedding, so every
+                # gallery image is guaranteed usable for recognition.
+                if get_face_embedding(face_crop) is not None:
+                    filename = os.path.join(path, f"img{next_index}.jpg")
+                    cv2.imwrite(filename, face_crop)
+                    next_index += 1
+                    saved += 1
+                    last_capture_time = now
+                    print(f"Saved {saved}/{to_capture}: {filename}")
+                else:
+                    rejected += 1
+
+        prompt = prompts[saved] if saved < len(prompts) else prompts[-1]
+        cv2.putText(display, prompt, (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        cv2.putText(display, f"Saved: {saved}/{to_capture}  Press q to quit", (10, 65),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        if rejected >= 10 and rejected > saved * 2:
+            cv2.putText(display, "Poor image quality - improve lighting / move closer",
+                        (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+        cv2.imshow('Register Student - Show Face', display)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
-        time.sleep(0.2)
 
     cap.release()
     cv2.destroyAllWindows()
-    print(f"Registration complete: {saved} images saved for {folder_name}")
-    from services.face_recognition_service import load_dataset
-    load_dataset()
-    #print(" Dataset reloaded")
+    total = len(_existing_gallery_images(path))
+    print(f"Registration complete: {saved} new images ({rejected} rejected), "
+          f"{total} total for {folder_name}")
+    load_dataset(force_reload=True)
     return saved
 
 

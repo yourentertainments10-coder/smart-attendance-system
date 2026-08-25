@@ -13,8 +13,9 @@ from utils.date_utils import get_current_date
 import numpy as np
 
 model = YOLO("yolov8n.pt")
+model.fuse()
 FRAME_SKIP = 3
-PROCESS_EVERY_N_FRAMES = 2
+PROCESS_EVERY_N_FRAMES = 1
 SAVE_INTERVAL = 20
 MIN_DETECTION_CONFIDENCE = 0.55
 MIN_FACE_SIZE = 80
@@ -22,7 +23,7 @@ FACE_PADDING_RATIO = 0.2
 STUDENT_STALE_TIMEOUT = 3
 SMOOTHING_ALPHA = 0.3
 FACE_SIZE = (160, 160)
-FRAME_RESIZE = (480, 360)
+FRAME_RESIZE = (416, 320)
 
 
 active_students_state = {}
@@ -30,6 +31,7 @@ active_students = {}
 engagement_history = {}
 last_saved = {}
 recognized_cache = {}
+last_recognition_attempt = {}
 
 def calculate_engagement(face_crop, landmarks_data, phone_detected=False):
     score = 0.0
@@ -93,7 +95,7 @@ def _padded_face_crop(person_crop, face_box):
 
 def process_class_frame(frame):
     frame = cv2.resize(frame, FRAME_RESIZE)
-    results = model(frame, verbose=False)
+    results = model(frame, verbose=False,imgsz=320)
     persons = []
     phone_boxes = []
 
@@ -157,15 +159,17 @@ def gen_class_frames():
     global engagement_history
     global last_saved
     global recognized_cache
+    global last_recognition_attempt
 
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FPS, 15)
+    cap.set(cv2.CAP_PROP_FPS, 10)
+    print("Starting fresh monitor stream...")
 
     if not cap.isOpened():
-        print("❌ Class monitor camera failed")
+        print(" Class monitor camera failed")
         return
 
-    print("✅ Class engagement monitor started")
+    print(" Class engagement monitor started")
 
     tracker = SimpleFaceTracker()
     frame_count = 0
@@ -173,7 +177,6 @@ def gen_class_frames():
     last_saved = {}
     recognized_cache = {}
 
-    FRAME_SKIP = 3
 
     try:
         while True:
@@ -215,13 +218,21 @@ def gen_class_frames():
 
                 cached_name = recognized_cache.get(track_id)
 
-                if cached_name is None or cached_name == "Unknown":
+                if (
+                    cached_name is None or cached_name == "Unknown"
+                ) and (
+                    track_id not in last_recognition_attempt or
+                    now - last_recognition_attempt[track_id] > 2
+                ):
+
+                    last_recognition_attempt[track_id] = now
+
                     detected_name = recognize_student(
                         face_rgb,
                         threshold=CLASS_MONITOR_THRESHOLD
                     )
 
-    # Only overwrite cache if valid recognition
+                    # Only overwrite cache if valid recognition
                     if detected_name != "Unknown":
                         recognized_cache[track_id] = detected_name
 
@@ -237,10 +248,9 @@ def gen_class_frames():
                 raw_score = calculate_engagement(face_crop, landmarks_data, phone_detected)
                 previous_score = active_students.get(name, {}).get("score", raw_score)
                 score = (1 - SMOOTHING_ALPHA) * previous_score + SMOOTHING_ALPHA * raw_score
-
-                active_students[name] = {"score": score, "phone": phone_detected, "last_seen": now}
+                if name != "Unknown":
+                    active_students[name] = {"score": score, "phone": phone_detected, "last_seen": now}
                 
-
                 if name not in engagement_history:
                     engagement_history[name] = []
                 engagement_history[name].append(score)
@@ -265,6 +275,11 @@ def gen_class_frames():
             active_students = {n: d for n, d in active_students.items() if now - d['last_seen'] <= STUDENT_STALE_TIMEOUT}
             engagement_history = {n: h for n, h in engagement_history.items() if n in active_students}
             last_saved = {n: t for n, t in last_saved.items() if n in active_students}
+            active_track_ids = {t['track_id'] for t in tracked_persons}
+            recognized_cache = {
+                tid: name for tid, name in recognized_cache.items()
+                if tid in active_track_ids
+                    }
 
             current_time = time.time()
             for n, d in active_students.items():
