@@ -6,9 +6,11 @@ import mediapipe as mp
 
 from services.face_recognition_service import recognize_student, CLASS_MONITOR_THRESHOLD
 from services.face_detection import detect_faces
-from services.engagement_detection import process_landmarks
+from services.engagement_detection import score_landmarks
 from services.face_tracker import SimpleFaceTracker
 from services.identity_binder import IdentityBinder
+from services.behavior_classifier import BehaviorClassifier
+from services.engagement_events import EngagementEventLogger
 from models.engagement_model import record_engagement
 from models.attendance_model import get_present_folder_names
 from utils.date_utils import get_current_date
@@ -209,6 +211,8 @@ def gen_class_frames():
     # radius is scaled up accordingly.
     tracker = SimpleFaceTracker(max_distance=120)
     binder = IdentityBinder(threshold=CLASS_MONITOR_THRESHOLD, debug=DEBUG_RECOGNITION)
+    classifier = BehaviorClassifier()
+    event_logger = EngagementEventLogger()
     frame_count = 0
     last_saved = {}
     # Restrict matching to students marked present today; refreshed
@@ -268,12 +272,19 @@ def gen_class_frames():
                 name = binder.update(track_id, face_crop,
                                      allowed_names=allowed_names, now=now)
 
+                behavior = classifier.classify(track_id, face_crop,
+                                               phone_detected=phone_detected, now=now)
+                if name != "Unknown":
+                    event_logger.observe(name, behavior["state"], now=now)
+
                 x1, y1, x2, y2 = tracked['bbox']
                 color = (0, 0, 255) if phone_detected else (0, 255, 0)
 
+                # Reuse the classifier's FaceMesh landmarks for the numeric
+                # score instead of running a second mesh on the same crop.
                 landmarks_data = None
-                if face_crop is not None and face_crop.size > 0:
-                    landmarks_data = process_landmarks(face_crop)
+                if behavior["landmarks"] is not None:
+                    landmarks_data = score_landmarks(behavior["landmarks"])
 
                 raw_score = calculate_engagement(face_crop, landmarks_data, phone_detected)
                 previous_score = active_students.get(name, {}).get("score", raw_score)
@@ -296,19 +307,23 @@ def gen_class_frames():
                     engagement_history[name] = engagement_history[name][-10:]
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                label = f"{name}: {int(score * 100)}%"
-                if phone_detected:
-                    label += " 📱"
+                label = f"{name}: {int(score * 100)}% [{behavior['state']}]"
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
             # Cleanup stale students
             active_students = {n: d for n, d in active_students.items() if now - d['last_seen'] <= STUDENT_STALE_TIMEOUT}
             engagement_history = {n: h for n, h in engagement_history.items() if n in active_students}
             last_saved = {n: t for n, t in last_saved.items() if n in active_students}
-            # Keep binder state only for tracks the tracker still knows about
-            # (not just this frame's detections), so a briefly occluded student
-            # keeps their identity until the track itself expires.
-            binder.prune(set(tracker.tracks.keys()))
+            # Students that vanished from the camera long enough get a
+            # not_visible event.
+            event_logger.tick(now)
+
+            # Keep binder/classifier state only for tracks the tracker still
+            # knows about (not just this frame's detections), so a briefly
+            # occluded student keeps their identity until the track expires.
+            live_track_ids = set(tracker.tracks.keys())
+            binder.prune(live_track_ids)
+            classifier.prune(live_track_ids)
 
             current_time = time.time()
             for n, d in active_students.items():
@@ -324,5 +339,7 @@ def gen_class_frames():
             yield (b'--frame\r\n' + b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
     finally:
+        event_logger.close_all()
+        classifier.close_all()
         cap.release()
         cv2.destroyAllWindows()

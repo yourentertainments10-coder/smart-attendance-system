@@ -75,6 +75,73 @@
             </form>
         </div>
 
+        <!-- ENGAGEMENT TIMELINE -->
+        <div class="section">
+            <h3>Student Engagement Timeline</h3>
+
+            <div class="form-group">
+                <label>Student</label>
+                <select id="tl_student">
+                    {% for s in students %}
+                        <option value="{{ s.student_id }}">{{ s.name }} ({{ s.student_id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="tl_date" value="{{ today }}">
+            </div>
+
+            <button type="button" class="btn btn-primary" onclick="loadTimeline()">Show Timeline</button>
+
+            <div id="tl_summary" style="margin-top: 12px; font-weight: bold;"></div>
+            <ul id="tl_list" class="report-list" style="margin-top: 8px;"></ul>
+        </div>
+
+        <script>
+        function fmtDuration(sec) {
+            if (sec === null || sec === undefined) return 'ongoing';
+            if (sec < 60) return sec + 's';
+            return Math.round(sec / 60) + ' min';
+        }
+        function fmtState(s) { return s.replace(/_/g, ' '); }
+        function fmtTime(ts) { return ts ? ts.split(' ')[1].slice(0, 5) : '...'; }
+
+        async function loadTimeline() {
+            const id = document.getElementById('tl_student').value;
+            const date = document.getElementById('tl_date').value;
+            const list = document.getElementById('tl_list');
+            const summary = document.getElementById('tl_summary');
+            list.innerHTML = '';
+            summary.textContent = 'Loading...';
+
+            try {
+                const res = await fetch(`/api/timeline/${encodeURIComponent(id)}?date=${date}`);
+                const data = await res.json();
+
+                if (!data.events.length) {
+                    summary.textContent = 'No engagement events recorded for this student on ' + data.date + '.';
+                    return;
+                }
+
+                summary.textContent = Object.entries(data.totals_seconds)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([state, sec]) => `${fmtState(state)}: ${fmtDuration(sec)}`)
+                    .join('  ·  ');
+
+                for (const ev of data.events) {
+                    const li = document.createElement('li');
+                    li.textContent = `${fmtTime(ev.start_time)}–${fmtTime(ev.end_time)}  ` +
+                        `${fmtState(ev.event_type)} (${fmtDuration(ev.duration_seconds)})`;
+                    list.appendChild(li);
+                }
+            } catch (e) {
+                summary.textContent = 'Could not load timeline: ' + e;
+            }
+        }
+        </script>
+
         <!-- RECENT -->
         <div class="section">
             <h3>Recent Reports</h3>

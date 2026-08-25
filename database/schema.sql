@@ -28,6 +28,20 @@ CREATE TABLE IF NOT EXISTS engagement (
     FOREIGN KEY(student_id) REFERENCES students(student_id)
 );
 
+-- Engagement events: teacher-readable behavior timeline per student.
+-- end_time is NULL while the state is still active.
+CREATE TABLE IF NOT EXISTS engagement_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    event_type TEXT NOT NULL,        -- attentive | looking_away | head_down |
+                                     -- talking | phone | partially_visible | not_visible
+    start_time TEXT NOT NULL,
+    end_time TEXT,
+    FOREIGN KEY(student_id) REFERENCES students(student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_events_student_date ON engagement_events(student_id, date);
+
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
 CREATE INDEX IF NOT EXISTS idx_engagement_student_date ON engagement(student_id, date);
 CREATE INDEX IF NOT EXISTS idx_engagement_timestamp ON engagement(timestamp);

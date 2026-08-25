@@ -157,7 +157,11 @@ for more than one re-verification cycle (~15 s), and no name appears twice at on
 
 ---
 
-## Phase 4 — Behavior states + timeline (delivers the feature)
+## Phase 4 — Behavior states + timeline (delivers the feature) — ✅ IMPLEMENTED
+(Remaining manual step: the scripted live self-test below. Thresholds in
+services/behavior_classifier.py — YAW_AWAY_RATIO, PITCH_DOWN_RATIO,
+TALK_STD_THRESHOLD — were calibrated on the gallery for frontal baselines;
+fine-tune them during the live test using the [state] label on each face box.)
 
 ### 4.1 New DB table (migration, additive only)
 File: `database/schema.sql` (+ one-time `ALTER`/`CREATE` on the live DB)

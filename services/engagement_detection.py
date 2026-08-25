@@ -17,8 +17,12 @@ def process_landmarks(frame):
     if not results.multi_face_landmarks:
         return None
 
-    landmarks = results.multi_face_landmarks
+    return score_landmarks(results.multi_face_landmarks)
 
+
+def score_landmarks(landmarks):
+    """Score already-computed FaceMesh landmarks (avoids running a second
+    mesh when the behavior classifier has produced them for the same crop)."""
     # Simple engagement logic (face facing camera)
     score = 0
 

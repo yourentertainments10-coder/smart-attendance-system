@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, send_file, flash
+from flask import Blueprint, render_template, request, send_file, flash, jsonify
 from services.report_generator import generate_daily_report, generate_monthly_report, generate_defaulters_report, generate_excel_report
 from utils.date_utils import get_current_date
 from datetime import datetime
@@ -29,7 +29,28 @@ def reports_page():
         for row in rows
     ]
 
-    return render_template('reports.html', recent_reports=recent_reports)
+    students = db.execute(
+        "SELECT student_id, name FROM students ORDER BY name"
+    ).fetchall()
+
+    return render_template('reports.html', recent_reports=recent_reports,
+                           students=students, today=get_current_date())
+
+
+@report_bp.route('/api/timeline/<student_id>')
+def timeline_api(student_id):
+    from models.engagement_model import get_timeline
+    date = request.args.get('date') or get_current_date()
+    events = get_timeline(student_id, date)
+
+    # Per-state total minutes for the summary line
+    totals = {}
+    for ev in events:
+        if ev["duration_seconds"]:
+            totals[ev["event_type"]] = totals.get(ev["event_type"], 0) + ev["duration_seconds"]
+
+    return jsonify({"student_id": student_id, "date": date,
+                    "events": events, "totals_seconds": totals})
 
 @report_bp.route('/reports/daily', methods=['GET','POST'])
 def daily_report():
