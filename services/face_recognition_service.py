@@ -165,22 +165,31 @@ def load_dataset(force_reload=False):
     print(f"Dataset loaded: {len(dataset)} embeddings (using {'CNN' if FACE_RECOGNITION_AVAILABLE else 'landmark fallback'})")
 
 
-def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=False):
+def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=False,
+                      allowed_names=None, return_score=False):
+    """
+    allowed_names: optional set of folder names to restrict matching to
+    (e.g. today's attendees) — a smaller candidate set means fewer confusions.
+    return_score: when True, returns (name, best_distance) instead of name.
+    """
+    def _result(name, score):
+        return (name, score) if return_score else name
+
     if face_img is None:
         if debug:
             print("?? Empty face crop")
-        return "Unknown"
+        return _result("Unknown", None)
 
     embedding = get_face_embedding(face_img)
     if embedding is None:
         if debug:
             print("?? No embedding")
-        return "Unknown"
+        return _result("Unknown", None)
 
     if len(dataset) == 0:
         if debug:
             print("? Dataset empty")
-        return "Unknown"
+        return _result("Unknown", None)
 
     # Store all distances grouped by student
     student_distances = defaultdict(list)
@@ -188,12 +197,14 @@ def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=False):
     for name, stored_emb in dataset:
         if stored_emb is None:
             continue
+        if allowed_names is not None and name not in allowed_names:
+            continue
 
         dist = np.linalg.norm(embedding - stored_emb)
         student_distances[name].append(dist)
 
     if len(student_distances) == 0:
-        return "Unknown"
+        return _result("Unknown", None)
 
     # Compute average of best few distances per student
     best_student = "Unknown"
@@ -220,6 +231,6 @@ def recognize_student(face_img, threshold=ATTENDANCE_THRESHOLD, debug=False):
 
     # STRICT acceptance conditions
     if best_score <= threshold and confidence_gap > 0.03:
-        return best_student
+        return _result(best_student, best_score)
     else:
-        return "Unknown"
+        return _result("Unknown", best_score)

@@ -109,7 +109,10 @@ the true identity in most cells.
 
 ---
 
-## Phase 3 — Identity binding (fixes "events on the wrong student")
+## Phase 3 — Identity binding (fixes "events on the wrong student") — ✅ IMPLEMENTED
+(Remaining manual step: the two-person live test below. Note: if no attendance
+is marked today, the monitor falls back to matching against ALL registered
+students and says so in the console — attendance-first is the intended flow.)
 
 ### 3.1 Restrict candidates to today's attendees
 Files: `models/attendance_model.py` (new helper), `services/face_recognition_service.py`

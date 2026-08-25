@@ -8,7 +8,9 @@ from services.face_recognition_service import recognize_student, CLASS_MONITOR_T
 from services.face_detection import detect_faces
 from services.engagement_detection import process_landmarks
 from services.face_tracker import SimpleFaceTracker
+from services.identity_binder import IdentityBinder
 from models.engagement_model import record_engagement
+from models.attendance_model import get_present_folder_names
 from utils.date_utils import get_current_date
 import numpy as np
 
@@ -31,14 +33,14 @@ DETECTION_SIZE = (416, 320)
 # Print best/second/gap distances for every recognition attempt.
 # Leave True while verifying Phase 2 accuracy, then set False.
 DEBUG_RECOGNITION = True
+# How often to re-read today's attendee list from the DB.
+ATTENDEE_REFRESH_INTERVAL = 30
 
 
 active_students_state = {}
 active_students = {}
 engagement_history = {}
 last_saved = {}
-recognized_cache = {}
-last_recognition_attempt = {}
 
 def calculate_engagement(face_crop, landmarks_data, phone_detected=False):
     score = 0.0
@@ -192,8 +194,6 @@ def gen_class_frames():
     global active_students
     global engagement_history
     global last_saved
-    global recognized_cache
-    global last_recognition_attempt
 
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FPS, 10)
@@ -205,13 +205,17 @@ def gen_class_frames():
 
     print(" Class engagement monitor started")
 
-    # Centroids are now in original-frame pixels (was 416x320), so the
-    # matching radius scales up accordingly. Tracker tuning proper is Phase 3.
+    # Centroids are in original-frame pixels (was 416x320), so the matching
+    # radius is scaled up accordingly.
     tracker = SimpleFaceTracker(max_distance=120)
+    binder = IdentityBinder(threshold=CLASS_MONITOR_THRESHOLD, debug=DEBUG_RECOGNITION)
     frame_count = 0
-    active_tracks = {}  # track_id: {'name':str, 'score':float, 'phone':bool, 'history':list}
     last_saved = {}
-    recognized_cache = {}
+    # Restrict matching to students marked present today; refreshed
+    # periodically. None = no attendance yet -> fall back to all students.
+    allowed_names = None
+    last_attendee_refresh = 0.0
+    announced_no_attendance = False
 
 
     try:
@@ -237,6 +241,18 @@ def gen_class_frames():
                 yield (b'--frame\r\n' + b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
                 continue
 
+            if now - last_attendee_refresh > ATTENDEE_REFRESH_INTERVAL:
+                last_attendee_refresh = now
+                present = get_present_folder_names()
+                if present:
+                    allowed_names = present
+                    announced_no_attendance = False
+                else:
+                    allowed_names = None
+                    if not announced_no_attendance:
+                        print("No attendance marked today - matching against ALL registered students")
+                        announced_no_attendance = True
+
             persons = process_class_frame(frame)
             tracked_persons = tracker.update(persons)
 
@@ -249,31 +265,8 @@ def gen_class_frames():
                 if face_crop is None or face_crop.size == 0:
                     continue
 
-                face_rgb = face_crop
-
-
-                cached_name = recognized_cache.get(track_id)
-
-                if (
-                    cached_name is None or cached_name == "Unknown"
-                ) and (
-                    track_id not in last_recognition_attempt or
-                    now - last_recognition_attempt[track_id] > 2
-                ):
-
-                    last_recognition_attempt[track_id] = now
-
-                    detected_name = recognize_student(
-                        face_rgb,
-                        threshold=CLASS_MONITOR_THRESHOLD,
-                        debug=DEBUG_RECOGNITION
-                    )
-
-                    # Only overwrite cache if valid recognition
-                    if detected_name != "Unknown":
-                        recognized_cache[track_id] = detected_name
-
-                name = recognized_cache.get(track_id, "Unknown")
+                name = binder.update(track_id, face_crop,
+                                     allowed_names=allowed_names, now=now)
 
                 x1, y1, x2, y2 = tracked['bbox']
                 color = (0, 0, 255) if phone_detected else (0, 255, 0)
@@ -312,11 +305,10 @@ def gen_class_frames():
             active_students = {n: d for n, d in active_students.items() if now - d['last_seen'] <= STUDENT_STALE_TIMEOUT}
             engagement_history = {n: h for n, h in engagement_history.items() if n in active_students}
             last_saved = {n: t for n, t in last_saved.items() if n in active_students}
-            active_track_ids = {t['track_id'] for t in tracked_persons}
-            recognized_cache = {
-                tid: name for tid, name in recognized_cache.items()
-                if tid in active_track_ids
-                    }
+            # Keep binder state only for tracks the tracker still knows about
+            # (not just this frame's detections), so a briefly occluded student
+            # keeps their identity until the track itself expires.
+            binder.prune(set(tracker.tracks.keys()))
 
             current_time = time.time()
             for n, d in active_students.items():

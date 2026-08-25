@@ -1,6 +1,34 @@
+import os
 import sqlite3
 from database.db_connection import get_db
 from utils.date_utils import get_current_date, get_current_time
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATABASE_PATH = os.path.join(BASE_DIR, "instance", "smart_attendance.db")
+
+
+def get_present_folder_names(date=None):
+    """
+    Folder names (dataset identities) of students marked present on `date`
+    (default: today). Uses its own connection — callable from the monitor
+    stream, outside any Flask request context.
+    """
+    if date is None:
+        date = get_current_date()
+    conn = sqlite3.connect(DATABASE_PATH)
+    try:
+        rows = conn.execute("""
+            SELECT s.folder_name
+            FROM attendance a
+            JOIN students s ON s.student_id = a.student_id
+            WHERE a.date = ?
+        """, (date,)).fetchall()
+        return {row[0] for row in rows}
+    except Exception as e:
+        print(f"Present-list query failed: {e}")
+        return set()
+    finally:
+        conn.close()
 
 def mark_attendance(student_id, recognized_name):
     from utils.date_utils import get_current_date, get_current_time

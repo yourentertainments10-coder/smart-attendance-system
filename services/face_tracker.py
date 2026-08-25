@@ -3,7 +3,7 @@ from collections import defaultdict
 import time
 
 class SimpleFaceTracker:
-    def __init__(self, max_distance=75, max_age=2.0, max_disappeared=30):
+    def __init__(self, max_distance=75, max_age=5.0, max_disappeared=30):
         """
         Simple centroid-based tracker for faces/persons.
         
@@ -32,9 +32,13 @@ class SimpleFaceTracker:
         Returns: list[dict{**detection, 'track_id':int, 'centroid':(cx,cy)}]
         """
         if len(detections) == 0:
-            # Age out disappeared tracks
+            # Age out disappeared tracks (and actually delete the expired ones)
+            current_time = time.time()
             for track_id in list(self.tracks.keys()):
                 self.tracks[track_id]['disappeared'] += 1
+                if (self.tracks[track_id]['disappeared'] > self.max_disappeared or
+                        current_time - self.tracks[track_id]['last_update'] > self.max_age):
+                    del self.tracks[track_id]
             return []
         
         # Compute centroids
@@ -101,13 +105,14 @@ class SimpleFaceTracker:
                 det['centroid'] = input_centroid
                 tracked.append(det)
         
-        # Age disappeared tracks
+        # Age disappeared tracks. NOTE: last_update must NOT be refreshed for
+        # unmatched tracks — it marks the last real detection, and refreshing
+        # it here made the max_age cleanup unreachable.
         current_time = time.time()
         for track_id in list(self.tracks.keys()):
             if track_id not in matched_tracks:
                 self.tracks[track_id]['disappeared'] += 1
-                self.tracks[track_id]['last_update'] = current_time
-            if (self.tracks[track_id]['disappeared'] > self.max_disappeared or 
+            if (self.tracks[track_id]['disappeared'] > self.max_disappeared or
                 current_time - self.tracks[track_id]['last_update'] > self.max_age):
                 del self.tracks[track_id]
         
